@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tajkiya Enterprise</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;font-family:Arial,sans-serif;
+ background:#f1f5f9;color:#172554;
+}
+header{
+ background:#123b70;color:white;
+ padding:25px;text-align:center;
+}
+header h1{margin:0;font-size:26px}
+header p{margin:8px 0 0}
+main{max-width:440px;margin:35px auto;padding:16px}
+.card{
+ background:white;padding:25px;
+ border-radius:16px;
+ box-shadow:0 5px 20px #0001;
+}
+h2{text-align:center}
+label{display:block;margin-top:16px}
+input,select,button{
+ width:100%;padding:14px;margin-top:7px;
+ border-radius:8px;font-size:16px;
+}
+input,select{border:1px solid #cbd5e1}
+button{
+ background:#123b70;color:white;
+ border:0;margin-top:24px;
+ cursor:pointer;
+}
+.note{font-size:13px;color:#64748b;text-align:center}
+</style>
+</head>
+<body>
+<header>
+<h1>Tajkiya Enterprise</h1>
+<p>Business Management System</p>
+</header>
+<main>
+<div class="card">
+<h2>Welcome Back</h2>
+<form id="loginForm">
+<label for="role">Login Type</label>
+<select id="role">
+<option value="admin">Admin</option>
+<option value="employee">Employee</option>
+<option value="customer">Customer</option>
+</select>
+<label for="email">Email</label>
+<input id="email" type="email" required
+ placeholder="Enter your email">
+<label for="password">Password</label>
+<input id="password" type="password" required
+ placeholder="Enter your password">
+<button type="submit">Login</button>
+</form>
+<p class="note" id="message">
+Secure login integration coming next.
+</p>
+</div>
+</main>
+<script>
+document.getElementById("loginForm")
+.addEventListener("submit",function(e){
+ e.preventDefault();
+ document.getElementById("message").textContent =
+ "Login is not active yet. Supabase setup is required.";
+});
+</script>
+</body>
+</html>
