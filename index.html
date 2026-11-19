@@ -5,47 +5,82 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tajkiya Enterprise</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box}
 body{
- margin:0;font-family:Arial,sans-serif;
- background:#f1f5f9;color:#172554;
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#f1f5f9;
+ color:#172554;
 }
 header{
- background:#123b70;color:white;
- padding:25px;text-align:center;
+ background:#123b70;
+ color:white;
+ padding:25px;
+ text-align:center;
 }
 header h1{margin:0;font-size:26px}
 header p{margin:8px 0 0}
-main{max-width:440px;margin:35px auto;padding:16px}
+main{
+ max-width:600px;
+ margin:35px auto;
+ padding:16px;
+}
 .card{
- background:white;padding:25px;
+ background:white;
+ padding:25px;
  border-radius:16px;
  box-shadow:0 5px 20px #0001;
 }
 h2{text-align:center}
 label{display:block;margin-top:16px}
 input,select,button{
- width:100%;padding:14px;margin-top:7px;
- border-radius:8px;font-size:16px;
+ width:100%;
+ padding:14px;
+ margin-top:7px;
+ border-radius:8px;
+ font-size:16px;
 }
 input,select{border:1px solid #cbd5e1}
 button{
- background:#123b70;color:white;
- border:0;margin-top:24px;
+ background:#123b70;
+ color:white;
+ border:0;
+ margin-top:24px;
  cursor:pointer;
 }
-.note{font-size:13px;color:#64748b;text-align:center}
+button:disabled{opacity:.6}
+.note{
+ font-size:13px;
+ color:#64748b;
+ text-align:center;
+ overflow-wrap:anywhere;
+}
+.error{color:#b91c1c}
+.success{color:#15803d}
+.hidden{display:none}
+.panel{
+ background:#f8fafc;
+ padding:16px;
+ border-radius:10px;
+ margin-top:18px;
+}
 </style>
 </head>
+
 <body>
 <header>
 <h1>Tajkiya Enterprise</h1>
 <p>Business Management System</p>
 </header>
+
 <main>
-<div class="card">
+<div class="card" id="loginCard">
 <h2>Welcome Back</h2>
+
 <form id="loginForm">
 <label for="role">Login Type</label>
 <select id="role">
@@ -53,26 +88,150 @@ button{
 <option value="employee">Employee</option>
 <option value="customer">Customer</option>
 </select>
+
 <label for="email">Email</label>
 <input id="email" type="email" required
- placeholder="Enter your email">
+placeholder="Enter your email">
+
 <label for="password">Password</label>
 <input id="password" type="password" required
- placeholder="Enter your password">
-<button type="submit">Login</button>
+placeholder="Enter your password">
+
+<button id="loginButton" type="submit">
+Login
+</button>
 </form>
+
 <p class="note" id="message">
-Secure login integration coming next.
+Secure login with Supabase
 </p>
 </div>
+
+<div class="card hidden" id="dashboard">
+<h2 id="dashboardTitle"></h2>
+<p id="welcome"></p>
+<div class="panel" id="dashboardContent"></div>
+<button id="logoutButton">Logout</button>
+</div>
 </main>
+
 <script>
+const SUPABASE_URL =
+"https://kncdwgnhylfgrflytnst.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_zxVlVwBqk_EhWPuaWFNFpw_ZFIbzMHf";
+
+const db=window.supabase.createClient(
+ SUPABASE_URL,SUPABASE_KEY
+);
+
+const loginCard=document.getElementById("loginCard");
+const dashboard=document.getElementById("dashboard");
+const message=document.getElementById("message");
+const loginButton=document.getElementById("loginButton");
+
+function showError(text){
+ message.textContent=text;
+ message.className="note error";
+}
+
+function showLogin(){
+ dashboard.classList.add("hidden");
+ loginCard.classList.remove("hidden");
+}
+
+async function loadDashboard(user,selectedRole=null){
+ const {data,error}=await db
+ .from("profiles")
+ .select("full_name,role")
+ .eq("id",user.id)
+ .single();
+
+ if(error || !data){
+  await db.auth.signOut();
+  showLogin();
+  showError("Profile not found or access denied.");
+  return;
+ }
+
+ if(selectedRole && data.role!==selectedRole){
+  await db.auth.signOut();
+  showLogin();
+  showError("Your account does not have the selected role.");
+  return;
+ }
+
+ loginCard.classList.add("hidden");
+ dashboard.classList.remove("hidden");
+
+ const titles={
+  admin:"Admin Dashboard",
+  employee:"Employee Dashboard",
+  customer:"Customer Dashboard"
+ };
+
+ document.getElementById("dashboardTitle")
+ .textContent=titles[data.role] || "Dashboard";
+
+ document.getElementById("welcome")
+ .textContent="Welcome, "+(data.full_name || user.email);
+
+ const content=document.getElementById("dashboardContent");
+ content.replaceChildren();
+
+ const heading=document.createElement("h3");
+ heading.textContent=titles[data.role] || "Dashboard";
+
+ const info=document.createElement("p");
+ info.textContent=
+ "Login successful. Business features will be added next.";
+
+ content.append(heading,info);
+}
+
 document.getElementById("loginForm")
-.addEventListener("submit",function(e){
+.addEventListener("submit",async(e)=>{
  e.preventDefault();
- document.getElementById("message").textContent =
- "Login is not active yet. Supabase setup is required.";
+ loginButton.disabled=true;
+ message.textContent="Signing in...";
+ message.className="note";
+
+ try{
+  const email=document.getElementById("email")
+   .value.trim();
+  const password=document.getElementById("password").value;
+  const role=document.getElementById("role").value;
+
+  const {data,error}=await db.auth
+   .signInWithPassword({email,password});
+
+  if(error)throw error;
+
+  await loadDashboard(data.user,role);
+
+ }catch(err){
+  showError(err.message || "Login failed");
+ }finally{
+  loginButton.disabled=false;
+ }
 });
+
+document.getElementById("logoutButton")
+.addEventListener("click",async()=>{
+ await db.auth.signOut();
+ showLogin();
+ message.textContent="You have logged out.";
+ message.className="note success";
+});
+
+async function restoreSession(){
+ const {data,error}=await db.auth.getUser();
+ if(!error && data.user){
+  await loadDashboard(data.user);
+ }
+}
+restoreSession();
 </script>
 </body>
 </html>
