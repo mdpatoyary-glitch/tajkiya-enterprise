@@ -19,7 +19,7 @@ body{
 header{
  background:#123b70;
  color:white;
- padding:25px;
+ padding:25px 15px;
  text-align:center;
 }
 header h1{margin:0;font-size:26px}
@@ -44,7 +44,9 @@ input,select,button{
  border-radius:8px;
  font-size:16px;
 }
-input,select{border:1px solid #cbd5e1}
+input,select{
+ border:1px solid #cbd5e1;
+}
 button{
  background:#123b70;
  color:white;
@@ -54,10 +56,11 @@ button{
 }
 button:disabled{opacity:.6}
 .note{
- font-size:13px;
+ font-size:14px;
  color:#64748b;
  text-align:center;
  overflow-wrap:anywhere;
+ line-height:1.6;
 }
 .error{color:#b91c1c}
 .success{color:#15803d}
@@ -72,16 +75,19 @@ button:disabled{opacity:.6}
 </head>
 
 <body>
+
 <header>
 <h1>Tajkiya Enterprise</h1>
 <p>Business Management System</p>
 </header>
 
 <main>
+
 <div class="card" id="loginCard">
 <h2>Welcome Back</h2>
 
 <form id="loginForm">
+
 <label for="role">Login Type</label>
 <select id="role">
 <option value="admin">Admin</option>
@@ -90,16 +96,27 @@ button:disabled{opacity:.6}
 </select>
 
 <label for="email">Email</label>
-<input id="email" type="email" required
-placeholder="Enter your email">
+<input
+ id="email"
+ type="email"
+ required
+ placeholder="Enter your email"
+ autocomplete="username"
+>
 
 <label for="password">Password</label>
-<input id="password" type="password" required
-placeholder="Enter your password">
+<input
+ id="password"
+ type="password"
+ required
+ placeholder="Enter your password"
+ autocomplete="current-password"
+>
 
 <button id="loginButton" type="submit">
 Login
 </button>
+
 </form>
 
 <p class="note" id="message">
@@ -110,30 +127,49 @@ Secure login with Supabase
 <div class="card hidden" id="dashboard">
 <h2 id="dashboardTitle"></h2>
 <p id="welcome"></p>
+
 <div class="panel" id="dashboardContent"></div>
-<button id="logoutButton">Logout</button>
+
+<button id="logoutButton">
+Logout
+</button>
 </div>
+
 </main>
 
 <script>
+
 const SUPABASE_URL =
 "https://kncdwgnhylfgrflytnst.supabase.co";
 
 const SUPABASE_KEY =
 "sb_publishable_zxVlVwBqk_EhWPuaWFNFpw_ZFIbzMHf";
 
-const db=window.supabase.createClient(
- SUPABASE_URL,SUPABASE_KEY
+const db = window.supabase.createClient(
+ SUPABASE_URL,
+ SUPABASE_KEY
 );
 
-const loginCard=document.getElementById("loginCard");
-const dashboard=document.getElementById("dashboard");
-const message=document.getElementById("message");
-const loginButton=document.getElementById("loginButton");
+const loginCard =
+ document.getElementById("loginCard");
+
+const dashboard =
+ document.getElementById("dashboard");
+
+const message =
+ document.getElementById("message");
+
+const loginButton =
+ document.getElementById("loginButton");
 
 function showError(text){
  message.textContent=text;
  message.className="note error";
+}
+
+function showSuccess(text){
+ message.textContent=text;
+ message.className="note success";
 }
 
 function showLogin(){
@@ -142,23 +178,35 @@ function showLogin(){
 }
 
 async function loadDashboard(user,selectedRole=null){
- const {data,error}=await db
- .from("profiles")
- .select("full_name,role")
- .eq("id",user.id)
- .single();
 
- if(error || !data){
-  await db.auth.signOut();
+ const {data,error}=await db
+  .from("profiles")
+  .select("id,full_name,role")
+  .eq("id",user.id)
+  .maybeSingle();
+
+ if(error){
+  console.error("Profile error:",error);
   showLogin();
-  showError("Profile not found or access denied.");
+  showError("Profile error: "+error.message);
+  return;
+ }
+
+ if(!data){
+  showLogin();
+  showError(
+   "Profile not found for this user. User ID: "+
+   user.id
+  );
   return;
  }
 
  if(selectedRole && data.role!==selectedRole){
-  await db.auth.signOut();
   showLogin();
-  showError("Your account does not have the selected role.");
+  showError(
+   "Access denied. Your assigned role is: "+
+   data.role
+  );
   return;
  }
 
@@ -172,66 +220,112 @@ async function loadDashboard(user,selectedRole=null){
  };
 
  document.getElementById("dashboardTitle")
- .textContent=titles[data.role] || "Dashboard";
+  .textContent=titles[data.role] || "Dashboard";
 
  document.getElementById("welcome")
- .textContent="Welcome, "+(data.full_name || user.email);
+  .textContent="Welcome, "+
+  (data.full_name || user.email);
 
- const content=document.getElementById("dashboardContent");
+ const content=
+  document.getElementById("dashboardContent");
+
  content.replaceChildren();
 
  const heading=document.createElement("h3");
  heading.textContent=titles[data.role] || "Dashboard";
 
  const info=document.createElement("p");
- info.textContent=
- "Login successful. Business features will be added next.";
+
+ if(data.role==="admin"){
+  info.textContent=
+   "Admin login successful. Business management features will be added next.";
+ }
+ else if(data.role==="employee"){
+  info.textContent=
+   "Employee login successful. Employee features will be added next.";
+ }
+ else{
+  info.textContent=
+   "Customer login successful. Customer features will be added next.";
+ }
 
  content.append(heading,info);
 }
 
 document.getElementById("loginForm")
 .addEventListener("submit",async(e)=>{
+
  e.preventDefault();
+
  loginButton.disabled=true;
  message.textContent="Signing in...";
  message.className="note";
 
  try{
-  const email=document.getElementById("email")
-   .value.trim();
-  const password=document.getElementById("password").value;
-  const role=document.getElementById("role").value;
+
+  const email=
+   document.getElementById("email").value.trim();
+
+  const password=
+   document.getElementById("password").value;
+
+  const role=
+   document.getElementById("role").value;
 
   const {data,error}=await db.auth
    .signInWithPassword({email,password});
 
   if(error)throw error;
 
+  if(!data.user){
+   throw new Error("User authentication failed.");
+  }
+
   await loadDashboard(data.user,role);
 
  }catch(err){
+  console.error("Login error:",err);
   showError(err.message || "Login failed");
- }finally{
+ }
+ finally{
   loginButton.disabled=false;
  }
+
 });
 
 document.getElementById("logoutButton")
 .addEventListener("click",async()=>{
- await db.auth.signOut();
+
+ const {error}=await db.auth.signOut();
+
+ if(error){
+  alert("Logout error: "+error.message);
+  return;
+ }
+
  showLogin();
- message.textContent="You have logged out.";
- message.className="note success";
+ showSuccess("You have logged out.");
+
 });
 
 async function restoreSession(){
+
  const {data,error}=await db.auth.getUser();
- if(!error && data.user){
+
+ if(error){
+  console.error("Session error:",error);
+  return;
+ }
+
+ if(data.user){
   await loadDashboard(data.user);
  }
+
 }
+
 restoreSession();
+
 </script>
+
 </body>
 </html>
