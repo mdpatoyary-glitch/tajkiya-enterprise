@@ -1,0 +1,643 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#102b4e">
+<title>Tajkiya Enterprise</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5fa;color:#18314d;font:15px system-ui,Arial}
+header{background:linear-gradient(120deg,#102b4e,#087e94);color:white;padding:22px 16px}
+header h1{margin:0;font-size:25px}
+header p{margin:5px 0;color:#d6e9f2}
+main{max-width:1100px;margin:auto;padding:12px}
+.card{background:white;border-radius:16px;padding:17px;margin:12px 0;box-shadow:0 4px 18px #142d4510}
+h2{font-size:20px;margin:0 0 14px}
+label{display:block;font-weight:600;margin:10px 0 5px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d4dfea;border-radius:10px;font:inherit;background:white;color:#18314d}
+input:focus,select:focus{outline:2px solid #81c9e1}
+button{background:#126aab;color:white;border:0;border-radius:10px;padding:11px 15px;font:inherit;cursor:pointer;margin:3px}
+button:disabled{opacity:.5}
+.danger{background:#ba354a}
+.secondary{background:#e7f0f8;color:#164d73}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{padding:16px;background:#edf5fc;border-radius:13px}
+.stat small{display:block;color:#59718a}
+.stat strong{display:block;font-size:22px;margin-top:7px;overflow-wrap:anywhere}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 0}
+nav button{white-space:nowrap;background:#e1ebf5;color:#244866}
+nav button.active{background:#126aab;color:white}
+.hidden{display:none!important}
+.tablewrap{overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:650px}
+th,td{padding:11px;text-align:left;border-bottom:1px solid #e5ebf2;font-size:13px}
+th{background:#edf4fa}
+.muted{color:#6a7e91;font-size:13px}
+#notice{position:sticky;top:0;z-index:5;padding:9px;border-radius:9px;display:none}
+#notice.ok{display:block;background:#e1f7eb;color:#12643b}
+#notice.err{display:block;background:#ffe9eb;color:#a02037}
+.actions{display:flex;flex-wrap:wrap;gap:5px}
+.actions button{padding:7px 9px;font-size:12px}
+@media(min-width:700px){.stats{grid-template-columns:repeat(3,1fr)}}
+@media print{
+header,nav,button,form,.no-print,#notice{display:none!important}
+body{background:white}
+.card{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Tajkiya Enterprise</h1>
+<p>Riyal Collection & Business Management</p>
+</header>
+<main>
+<div id="notice"></div>
+
+<section id="login" class="card">
+<h2>Secure Login</h2>
+<form id="loginForm">
+<label>Email</label>
+<input id="email" type="email" required autocomplete="username">
+<label>Password</label>
+<input id="password" type="password" required autocomplete="current-password">
+<button type="submit">Login</button>
+</form>
+</section>
+
+<div id="app" class="hidden">
+<section class="card">
+<div class="actions" style="justify-content:space-between;align-items:center">
+<div>
+<strong id="welcome">Welcome</strong>
+<p class="muted" id="roleName"></p>
+</div>
+<button id="logout" class="danger">Logout</button>
+</div>
+</section>
+
+<div id="staff" class="hidden">
+<nav id="nav">
+<button data-page="dashboard" class="active">Dashboard</button>
+<button data-page="parties">Parties</button>
+<button data-page="sales">Riyal Sales</button>
+<button data-page="payments">Payments</button>
+<button data-page="ledger">Party Ledger</button>
+<button data-page="cash">Cash Book</button>
+<button data-page="collection">Daily Collection</button>
+</nav>
+
+<section id="dashboard" class="card page">
+<h2>Business Dashboard</h2>
+<div class="stats">
+<div class="stat"><small>Total Riyal Sold</small><strong id="totalSar">0</strong></div>
+<div class="stat"><small>Total Sales BDT</small><strong id="totalSales">0</strong></div>
+<div class="stat"><small>Payments BDT</small><strong id="totalPayments">0</strong></div>
+<div class="stat"><small>Outstanding BDT</small><strong id="totalDue">0</strong></div>
+<div class="stat"><small>Gross Profit BDT</small><strong id="totalProfit">0</strong></div>
+<div class="stat"><small>Registered Parties</small><strong id="partyCount">0</strong></div>
+</div>
+<p class="muted">Gross Profit = (Selling Rate - Cost Rate) × SAR. অন্যান্য খরচ বাদ দেওয়া হয়নি।</p>
+<button onclick="loadAll()">Refresh Data</button>
+</section>
+
+<section id="parties" class="card page hidden">
+<h2>Party Management</h2>
+<form id="partyForm">
+<div class="grid">
+<div><label>Party Name (English)</label><input name="name" required></div>
+<div><label>Mobile</label><input name="phone"></div>
+<div><label>Address</label><input name="address"></div>
+<div><label>Opening Due BDT</label><input name="opening_due_bdt" type="number" step=".01" value="0" required></div>
+</div>
+<button type="submit">Save Party</button>
+<button type="button" class="secondary" onclick="resetForm('party')">Cancel Edit</button>
+</form>
+<h2>Registered Parties</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Name</th><th>Phone</th><th>Opening Due</th><th>Current Due</th><th>Action</th></tr></thead>
+<tbody id="partyRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="sales" class="card page hidden">
+<h2>Riyal Sales Entry</h2>
+<form id="saleForm">
+<div class="grid">
+<div><label>Party</label><select name="party_id" class="partySelect" required></select></div>
+<div><label>Date</label><input name="sale_date" type="date" required></div>
+<div><label>SAR Amount</label><input name="sar_amount" type="number" min=".01" step=".01" required></div>
+<div><label>Selling Rate</label><input name="selling_rate" type="number" min=".0001" step=".0001" required></div>
+<div><label>Cost Rate</label><input name="cost_rate" type="number" min="0" step=".0001" required></div>
+<div><label>Notes</label><input name="notes"></div>
+</div>
+<p id="salePreview" class="muted"></p>
+<button type="submit">Save Sale</button>
+<button type="button" class="secondary" onclick="resetForm('sale')">Cancel Edit</button>
+</form>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Profit</th><th>Action</th></tr></thead>
+<tbody id="saleRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="payments" class="card page hidden">
+<h2>Party Payment Entry</h2>
+<form id="paymentForm">
+<div class="grid">
+<div><label>Party</label><select name="party_id" class="partySelect" required></select></div>
+<div><label>Date</label><input name="payment_date" type="date" required></div>
+<div><label>Amount BDT</label><input name="amount_bdt" type="number" min=".01" step=".01" required></div>
+<div><label>Reference</label><input name="reference"></div>
+<div><label>Notes</label><input name="notes"></div>
+</div>
+<button type="submit">Save Payment</button>
+<button type="button" class="secondary" onclick="resetForm('payment')">Cancel Edit</button>
+</form>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Party</th><th>Amount BDT</th><th>Reference</th><th>Action</th></tr></thead>
+<tbody id="paymentRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="ledger" class="card page hidden">
+<h2>Party Ledger</h2>
+<label>Select Party</label>
+<select id="ledgerParty" class="partySelect"></select>
+<div class="stats" style="margin-top:12px">
+<div class="stat"><small>Total Sales</small><strong id="ledgerSales">0</strong></div>
+<div class="stat"><small>Payments</small><strong id="ledgerPaid">0</strong></div>
+<div class="stat"><small>Current Due</small><strong id="ledgerDue">0</strong></div>
+</div>
+<div class="actions">
+<button onclick="exportLedger()">Excel CSV</button>
+<button onclick="window.print()">Print / PDF</button>
+</div>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Details</th><th>Debit BDT</th><th>Credit BDT</th><th>Balance</th></tr></thead>
+<tbody id="ledgerRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="cash" class="card page hidden">
+<h2>Cash Book (SAR)</h2>
+<div class="stats">
+<div class="stat"><small>Cash In</small><strong id="cashIn">0</strong></div>
+<div class="stat"><small>Cash Out</small><strong id="cashOut">0</strong></div>
+<div class="stat"><small>Balance</small><strong id="cashBalance">0</strong></div>
+</div>
+<form id="cashForm">
+<div class="grid">
+<div><label>Date</label><input name="entry_date" type="date" required></div>
+<div><label>Type</label><select name="entry_type"><option value="in">Cash In</option><option value="out">Cash Out</option></select></div>
+<div><label>Person Name</label><input name="person_name" required></div>
+<div><label>Amount SAR</label><input name="amount_sar" type="number" min=".01" step=".01" required></div>
+<div><label>Notes</label><input name="notes"></div>
+</div>
+<button type="submit">Save Cash Entry</button>
+<button type="button" class="secondary" onclick="resetForm('cash')">Cancel Edit</button>
+</form>
+<button onclick="exportTable('cash')">Export CSV</button>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Person</th><th>Type</th><th>SAR</th><th>Notes</th><th>Action</th></tr></thead>
+<tbody id="cashRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="collection" class="card page hidden">
+<h2>Daily Riyal Collection</h2>
+<div class="stats">
+<div class="stat"><small>BDT Received</small><strong id="dcBdtTotal">0</strong></div>
+<div class="stat"><small>SAR Equivalent</small><strong id="dcSarTotal">0</strong></div>
+<div class="stat"><small>SAR Deposited</small><strong id="dcJomaTotal">0</strong></div>
+</div>
+<form id="collectionForm">
+<div class="grid">
+<div>
+<label>Customer Type</label>
+<select id="customerType">
+<option value="registered">Registered Party</option>
+<option value="new">New Person</option>
+</select>
+</div>
+<div id="registeredWrap">
+<label>Registered Party</label>
+<select id="dcParty" class="partySelect"></select>
+</div>
+<div id="newWrap" class="hidden">
+<label>Person Name (English)</label>
+<input id="dcName">
+</div>
+<div><label>Date</label><input name="entry_date" type="date" required></div>
+<div>
+<label>Entry Type</label>
+<select id="dcType" name="entry_type">
+<option value="bd_payment">BDT Payment</option>
+<option value="joma">Riyal Joma</option>
+</select>
+</div>
+<div>
+<label>Payment Method</label>
+<select name="payment_method">
+<option value="cash">Cash</option>
+<option value="bank">Bank</option>
+<option value="bkash">bKash</option>
+<option value="other">Other</option>
+</select>
+</div>
+<div id="bdtWrap">
+<label>BDT Amount</label>
+<input id="dcBdt" type="number" min=".01" step=".01">
+</div>
+<div id="rateWrap">
+<label>Rate</label>
+<input id="dcRate" type="number" min=".0001" step=".0001">
+</div>
+<div id="sarWrap" class="hidden">
+<label>Joma SAR</label>
+<input id="dcSar" type="number" min=".01" step=".01">
+</div>
+<div><label>Notes</label><input name="notes"></div>
+</div>
+<p id="dcPreview" class="muted"></p>
+<button type="submit">Save Collection</button>
+<button type="button" class="secondary" onclick="resetForm('collection')">Cancel Edit</button>
+</form>
+
+<h2>Customer Balance</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Customer</th><th>BDT</th><th>SAR Due</th><th>Joma</th><th>Remaining SAR</th></tr></thead>
+<tbody id="dcBalanceRows"></tbody>
+</table>
+</div>
+
+<h2>Collection History</h2>
+<button onclick="exportTable('collection')">Export CSV</button>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Customer</th><th>Type</th><th>BDT</th><th>Rate</th><th>SAR</th><th>Action</th></tr></thead>
+<tbody id="collectionRows"></tbody>
+</table>
+</div>
+</section>
+</div>
+
+<section id="customerArea" class="card hidden">
+<h2>My Party Ledger</h2>
+<h3 id="customerPartyName"></h3>
+<div class="stats">
+<div class="stat"><small>Opening Due</small><strong id="cOpening">0</strong></div>
+<div class="stat"><small>Sales</small><strong id="cSales">0</strong></div>
+<div class="stat"><small>Payments</small><strong id="cPaid">0</strong></div>
+<div class="stat"><small>Current Due</small><strong id="cDue">0</strong></div>
+</div>
+<button onclick="window.print()">Print / PDF</button>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Details</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+<tbody id="customerRows"></tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+"use strict";
+const URL_DB="https://kncdwgnhylfgrflytnst.supabase.co";
+const KEY_DB="sb_publishable_zxVlVwBqk_EhWPuaWFNFpw_ZFIbzMHf";
+const $=id=>document.getElementById(id);
+const db=window.supabase.createClient(URL_DB,KEY_DB);
+const n=v=>Number(v||0);
+const fmt=v=>n(v).toLocaleString("en-US",{maximumFractionDigits:2});
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let user=null,role="",partyList=[],saleList=[],paymentList=[],cashList=[],collectionList=[];
+let editIds={party:null,sale:null,payment:null,cash:null,collection:null};
+let ledgerData=[];
+const forms={party:"partyForm",sale:"saleForm",payment:"paymentForm",cash:"cashForm",collection:"collectionForm"};
+const tables={party:"parties",sale:"party_sales",payment:"party_payments",cash:"cash_book",collection:"daily_collections"};
+
+function msg(t,error=false){
+const el=$("notice");el.textContent=t;el.className=error?"err":"ok";
+}
+function check(r){if(r.error)throw r.error;return r.data}
+function admin(){return role==="admin"}
+function staff(){return role==="admin"||role==="employee"}
+function partyName(id){return partyList.find(x=>x.id===id)?.name||"Unknown"}
+function formData(form){return Object.fromEntries(new FormData(form).entries())}
+function buttons(type,id){
+if(!admin())return "";
+return `<div class="actions"><button data-act="edit" data-type="${type}" data-id="${esc(id)}">Edit</button><button class="danger" data-act="delete" data-type="${type}" data-id="${esc(id)}">Delete</button></div>`;
+}
+function showPage(page){
+document.querySelectorAll(".page").forEach(x=>x.classList.toggle("hidden",x.id!==page));
+document.querySelectorAll("#nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
+if(page==="ledger")renderLedger();
+}
+document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+
+function resetForm(type){
+const f=$(forms[type]);f.reset();editIds[type]=null;
+const date=f.querySelector('input[type="date"]');
+if(date)date.value=today();
+if(type==="collection")switchCollection();
+if(type==="sale")salePreview();
+}
+function due(p){
+return n(p.opening_due_bdt)+saleList.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.total_bdt),0)-paymentList.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.amount_bdt),0);
+}
+async function loginView(){
+const {data:{session}}=await db.auth.getSession();
+user=session?.user||null;
+$("login").classList.toggle("hidden",!!user);
+$("app").classList.toggle("hidden",!user);
+if(!user)return;
+const profile=check(await db.from("profiles").select("*").eq("id",user.id).single());
+role=profile.role||"customer";
+$("welcome").textContent=profile.name||user.email;
+$("roleName").textContent="Role: "+role;
+$("staff").classList.toggle("hidden",!staff());
+$("customerArea").classList.toggle("hidden",staff());
+if(staff())await loadAll();
+else await loadCustomer(profile.party_id);
+}
+$("loginForm").onsubmit=async e=>{
+e.preventDefault();
+try{
+const {error}=await db.auth.signInWithPassword({email:$("email").value,password:$("password").value});
+if(error)throw error;
+await loginView();
+msg("Login successful");
+}catch(err){msg(err.message,true)}
+};
+$("logout").onclick=async()=>{await db.auth.signOut();location.reload()};
+
+async function loadAll(){
+try{
+const [p,s,r,c,d]=await Promise.all([
+db.from("parties").select("*").order("name"),
+db.from("party_sales").select("*").order("sale_date",{ascending:false}),
+db.from("party_payments").select("*").order("payment_date",{ascending:false}),
+db.from("cash_book").select("*").order("entry_date",{ascending:false}),
+db.from("daily_collections").select("*").order("entry_date",{ascending:false})
+]);
+partyList=check(p);saleList=check(s);paymentList=check(r);
+cashList=check(c);collectionList=check(d);
+renderAll();
+msg("Data updated");
+}catch(err){msg("Load error: "+err.message,true)}
+}
+function renderAll(){
+const salesTotal=saleList.reduce((a,x)=>a+n(x.total_bdt),0);
+const paidTotal=paymentList.reduce((a,x)=>a+n(x.amount_bdt),0);
+$("totalSar").textContent=fmt(saleList.reduce((a,x)=>a+n(x.sar_amount),0));
+$("totalSales").textContent=fmt(salesTotal);
+$("totalPayments").textContent=fmt(paidTotal);
+$("totalDue").textContent=fmt(partyList.reduce((a,p)=>a+due(p),0));
+$("totalProfit").textContent=fmt(saleList.reduce((a,x)=>a+n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate)),0));
+$("partyCount").textContent=partyList.length;
+
+document.querySelectorAll(".partySelect").forEach(el=>{
+const old=el.value;
+el.innerHTML='<option value="">Select Party</option>'+partyList.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+if(partyList.some(p=>p.id===old))el.value=old;
+});
+$("partyRows").innerHTML=partyList.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.phone)}</td><td>${fmt(p.opening_due_bdt)}</td><td>${fmt(due(p))}</td><td>${buttons("party",p.id)}</td></tr>`).join("");
+
+$("saleRows").innerHTML=saleList.map(x=>`<tr><td>${esc(x.sale_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.sar_amount)}</td><td>${fmt(x.selling_rate)}</td><td>${fmt(x.total_bdt)}</td><td>${fmt(n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate)))}</td><td>${buttons("sale",x.id)}</td></tr>`).join("");
+
+$("paymentRows").innerHTML=paymentList.map(x=>`<tr><td>${esc(x.payment_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.amount_bdt)}</td><td>${esc(x.reference)}</td><td>${buttons("payment",x.id)}</td></tr>`).join("");
+renderCash();
+renderCollection();
+renderLedger();
+}
+
+function renderCash(){
+const cashIn=cashList.filter(x=>x.entry_type==="in").reduce((a,x)=>a+n(x.amount_sar),0);
+const cashOut=cashList.filter(x=>x.entry_type==="out").reduce((a,x)=>a+n(x.amount_sar),0);
+$("cashIn").textContent=fmt(cashIn);
+$("cashOut").textContent=fmt(cashOut);
+$("cashBalance").textContent=fmt(cashIn-cashOut);
+$("cashRows").innerHTML=cashList.map(x=>`<tr><td>${esc(x.entry_date)}</td><td>${esc(x.person_name)}</td><td>${esc(x.entry_type)}</td><td>${fmt(x.amount_sar)}</td><td>${esc(x.notes)}</td><td>${buttons("cash",x.id)}</td></tr>`).join("");
+}
+
+function sarValue(x){
+return x.entry_type==="joma"?n(x.sar_amount):(n(x.rate)>0?n(x.bdt_amount)/n(x.rate):0);
+}
+function renderCollection(){
+let bdt=0,sar=0,joma=0;
+const groups=new Map();
+collectionList.forEach(x=>{
+const key=x.party_id||"name:"+String(x.customer_name).trim().toLowerCase();
+const g=groups.get(key)||{name:x.customer_name,bdt:0,due:0,joma:0};
+if(x.entry_type==="joma"){joma+=n(x.sar_amount);g.joma+=n(x.sar_amount)}
+else{bdt+=n(x.bdt_amount);sar+=sarValue(x);g.bdt+=n(x.bdt_amount);g.due+=sarValue(x)}
+groups.set(key,g);
+});
+$("dcBdtTotal").textContent=fmt(bdt);
+$("dcSarTotal").textContent=fmt(sar);
+$("dcJomaTotal").textContent=fmt(joma);
+$("dcBalanceRows").innerHTML=[...groups.values()].map(g=>`<tr><td>${esc(g.name)}</td><td>${fmt(g.bdt)}</td><td>${fmt(g.due)}</td><td>${fmt(g.joma)}</td><td>${fmt(g.due-g.joma)}</td></tr>`).join("");
+$("collectionRows").innerHTML=collectionList.map(x=>`<tr><td>${esc(x.entry_date)}</td><td>${esc(x.customer_name)}</td><td>${esc(x.entry_type)}</td><td>${fmt(x.bdt_amount)}</td><td>${fmt(x.rate)}</td><td>${fmt(sarValue(x))}</td><td>${buttons("collection",x.id)}</td></tr>`).join("");
+}
+
+function buildLedger(p,ss,rr){
+const entries=[
+...ss.map(x=>({date:x.sale_date,created:x.created_at||"",details:"Sale "+fmt(x.sar_amount)+" SAR @ "+x.selling_rate,debit:n(x.total_bdt),credit:0})),
+...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"Payment "+(x.reference||""),debit:0,credit:n(x.amount_bdt)}))
+].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
+let balance=n(p.opening_due_bdt);
+const rows=[{date:"",details:"Opening Due",debit:balance,credit:0,balance}];
+entries.forEach(x=>{balance+=x.debit-x.credit;rows.push({...x,balance})});
+return rows;
+}
+function ledgerHTML(rows){
+return rows.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.details)}</td><td>${fmt(x.debit)}</td><td>${fmt(x.credit)}</td><td>${fmt(x.balance)}</td></tr>`).join("");
+}
+function renderLedger(){
+const id=$("ledgerParty").value;
+const p=partyList.find(x=>x.id===id);
+if(!p){ledgerData=[];$("ledgerRows").innerHTML="";return}
+const ss=saleList.filter(x=>x.party_id===id);
+const rr=paymentList.filter(x=>x.party_id===id);
+$("ledgerSales").textContent=fmt(ss.reduce((a,x)=>a+n(x.total_bdt),0));
+$("ledgerPaid").textContent=fmt(rr.reduce((a,x)=>a+n(x.amount_bdt),0));
+$("ledgerDue").textContent=fmt(due(p));
+ledgerData=buildLedger(p,ss,rr);
+$("ledgerRows").innerHTML=ledgerHTML(ledgerData);
+}
+$("ledgerParty").onchange=renderLedger;
+
+async function loadCustomer(id){
+if(!id)throw Error("No party linked to customer");
+const [p,s,r]=await Promise.all([
+db.from("parties").select("*").eq("id",id).single(),
+db.from("party_sales").select("*").eq("party_id",id),
+db.from("party_payments").select("*").eq("party_id",id)
+]);
+const party=check(p),ss=check(s),rr=check(r);
+const sold=ss.reduce((a,x)=>a+n(x.total_bdt),0);
+const paid=rr.reduce((a,x)=>a+n(x.amount_bdt),0);
+$("customerPartyName").textContent=party.name;
+$("cOpening").textContent=fmt(party.opening_due_bdt);
+$("cSales").textContent=fmt(sold);
+$("cPaid").textContent=fmt(paid);
+$("cDue").textContent=fmt(n(party.opening_due_bdt)+sold-paid);
+$("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr));
+}
+
+function salePreview(){
+const f=$("saleForm");
+const sar=n(f.elements.sar_amount.value),rate=n(f.elements.selling_rate.value),cost=n(f.elements.cost_rate.value);
+$("salePreview").textContent="Total: "+fmt(sar*rate)+" BDT | Gross Profit: "+fmt(sar*(rate-cost))+" BDT";
+}
+["sar_amount","selling_rate","cost_rate"].forEach(k=>$("saleForm").elements[k].addEventListener("input",salePreview));
+
+function switchCollection(){
+const newer=$("customerType").value==="new";
+const joma=$("dcType").value==="joma";
+$("registeredWrap").classList.toggle("hidden",newer);
+$("newWrap").classList.toggle("hidden",!newer);
+$("bdtWrap").classList.toggle("hidden",joma);
+$("rateWrap").classList.toggle("hidden",joma);
+$("sarWrap").classList.toggle("hidden",!joma);
+$("dcPreview").textContent=joma?"Joma: "+fmt($("dcSar").value)+" SAR":"SAR Due: "+fmt(n($("dcRate").value)>0?n($("dcBdt").value)/n($("dcRate").value):0);
+}
+["customerType","dcType","dcBdt","dcRate","dcSar"].forEach(id=>$(id).addEventListener("input",switchCollection));
+
+function payloadFor(type){
+const f=$(forms[type]),v=formData(f);
+if(type==="party")return {name:v.name.trim(),phone:v.phone||"",address:v.address||"",opening_due_bdt:n(v.opening_due_bdt)};
+if(type==="sale")return {party_id:v.party_id,sale_date:v.sale_date,sar_amount:n(v.sar_amount),selling_rate:n(v.selling_rate),cost_rate:n(v.cost_rate),notes:v.notes||""};
+if(type==="payment")return {party_id:v.party_id,payment_date:v.payment_date,amount_bdt:n(v.amount_bdt),reference:v.reference||"",notes:v.notes||""};
+if(type==="cash")return {entry_date:v.entry_date,entry_type:v.entry_type,person_name:v.person_name.trim(),amount_sar:n(v.amount_sar),notes:v.notes||""};
+if(type==="collection"){
+const newer=$("customerType").value==="new";
+const p=partyList.find(x=>x.id===$("dcParty").value);
+if(!newer&&!p)throw Error("Select registered party");
+const joma=v.entry_type==="joma";
+const customerName=newer?$("dcName").value.trim():p.name;
+if(!customerName)throw Error("Enter customer name");
+return {party_id:newer?null:p.id,customer_name:customerName,entry_date:v.entry_date,entry_type:v.entry_type,payment_method:v.payment_method,bdt_amount:joma?0:n($("dcBdt").value),rate:joma?null:n($("dcRate").value),sar_amount:joma?n($("dcSar").value):0,notes:v.notes||""};
+}
+}
+function validate(type,p){
+if(type==="sale"&&(p.sar_amount<=0||p.selling_rate<=0||p.cost_rate<0))throw Error("Invalid sale amount or rate");
+if(type==="payment"&&p.amount_bdt<=0)throw Error("Invalid payment");
+if(type==="cash"&&p.amount_sar<=0)throw Error("Invalid cash amount");
+if(type==="collection"){
+if(p.entry_type==="joma"&&p.sar_amount<=0)throw Error("Invalid Joma SAR");
+if(p.entry_type==="bd_payment"&&(p.bdt_amount<=0||p.rate<=0))throw Error("Invalid BDT or rate");
+}
+}
+Object.keys(forms).forEach(type=>{
+$(forms[type]).onsubmit=async e=>{
+e.preventDefault();
+const btn=e.target.querySelector('button[type="submit"]');
+btn.disabled=true;
+try{
+if(!staff())throw Error("Permission denied");
+const p=payloadFor(type);validate(type,p);
+const id=editIds[type];
+if(id){
+if(!admin())throw Error("Admin only can edit");
+const updated=check(await db.from(tables[type]).update(p).eq("id",id).select("id"));
+if(!updated?.length)throw Error("Update blocked by database policy");
+}else{
+p.created_by=user.id;
+check(await db.from(tables[type]).insert(p));
+}
+resetForm(type);
+await loadAll();
+msg("Saved successfully");
+}catch(err){msg("Save error: "+err.message,true)}
+finally{btn.disabled=false}
+};
+});
+
+function editRecord(type,id){
+if(!admin())return msg("Admin only",true);
+const items={party:partyList,sale:saleList,payment:paymentList,cash:cashList,collection:collectionList};
+const x=items[type].find(z=>String(z.id)===String(id));
+if(!x)return;
+editIds[type]=id;
+showPage({party:"parties",sale:"sales",payment:"payments",cash:"cash",collection:"collection"}[type]);
+const f=$(forms[type]);
+Object.keys(x).forEach(k=>{if(f.elements[k]&&x[k]!=null)f.elements[k].value=x[k]});
+if(type==="collection"){
+$("customerType").value=x.party_id?"registered":"new";
+$("dcParty").value=x.party_id||"";
+$("dcName").value=x.party_id?"":x.customer_name;
+$("dcBdt").value=x.bdt_amount||"";
+$("dcRate").value=x.rate||"";
+$("dcSar").value=x.sar_amount||"";
+switchCollection();
+}
+if(type==="sale")salePreview();
+f.scrollIntoView({behavior:"smooth"});
+msg("Editing entry. Save to update.");
+}
+
+async function deleteRecord(type,id){
+if(!admin())return msg("Admin only",true);
+if(!confirm("Permanently delete this "+type+" record?"))return;
+try{
+if(type==="party"){
+const result=await db.rpc("safe_delete_party",{p_party_id:id});
+if(result.error)throw result.error;
+}else{
+const deleted=check(await db.from(tables[type]).delete().eq("id",id).select("id"));
+if(!deleted?.length)throw Error("Delete blocked by database policy");
+}
+await loadAll();
+msg("Deleted successfully");
+}catch(err){msg("Delete error: "+err.message,true)}
+}
+document.addEventListener("click",e=>{
+const b=e.target.closest("button[data-act]");
+if(!b)return;
+const {act,type,id}=b.dataset;
+if(act==="edit")editRecord(type,id);
+if(act==="delete")deleteRecord(type,id);
+});
+
+function csv(rows,filename){
+const content="\uFEFF"+rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+const blob=new Blob([content],{type:"text/csv;charset=utf-8"});
+const url=URL.createObjectURL(blob);
+const a=document.createElement("a");
+a.href=url;a.download=filename;a.click();
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function exportLedger(){
+const p=partyList.find(x=>x.id===$("ledgerParty").value);
+if(!p)return msg("Select a party",true);
+csv([["Party",p.name],["Date","Details","Debit","Credit","Balance"],...ledgerData.map(x=>[x.date,x.details,x.debit,x.credit,x.balance])],"party-ledger.csv");
+}
+function exportTable(type){
+if(type==="cash")csv([["Date","Person","Type","SAR","Notes"],...cashList.map(x=>[x.entry_date,x.person_name,x.entry_type,x.amount_sar,x.notes])],"cash-book.csv");
+else csv([["Date","Customer","Type","BDT","Rate","SAR","Notes"],...collectionList.map(x=>[x.entry_date,x.customer_name,x.entry_type,x.bdt_amount,x.rate,sarValue(x),x.notes])],"daily-collection.csv");
+}
+
+document.querySelectorAll('input[type="date"]').forEach(x=>x.value=today());
+switchCollection();
+loginView().catch(err=>msg("Connection error: "+err.message,true));
+</script>
+</body>
+</html>
