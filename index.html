@@ -1,754 +1,125 @@
-
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tajkiya Enterprise</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tajkiya Enterprise | Business Ledger</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{box-sizing:border-box}
-body{margin:0;background:#f2f5fa;color:#19334a;font:15px Arial,sans-serif}
-header{background:#153e60;color:white;padding:20px}
-header h1{margin:0;font-size:24px}
-header p{margin:5px 0;color:#d7e7f5}
-.wrap{max-width:1100px;margin:auto;padding:15px}
-.card{background:white;padding:18px;margin:12px 0;border-radius:13px;box-shadow:0 3px 15px #1232}
-.hidden{display:none!important}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.flex{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-label{display:block;margin-top:10px;font-weight:bold}
-input,select{width:100%;padding:12px;margin:5px 0 10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
-button{border:0;background:#176ca9;color:white;padding:11px 15px;border-radius:8px;margin:3px;cursor:pointer;font:inherit}
-button:disabled{opacity:.5}
-.danger{background:#b42d42}
-.secondary{background:#64748b}
-.tabs{display:flex;gap:6px;flex-wrap:wrap}
-.tabs button{background:#e0ebf5;color:#16415f}
-.tabs button.active{background:#176ca9;color:white}
-.stat{background:#eaf3fc;padding:15px;border-radius:10px}
-.stat strong{display:block;font-size:22px;margin-top:7px}
-.tablewrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:600px;font-size:13px}
-th,td{padding:10px;text-align:left;border-bottom:1px solid #ddd}
-th{background:#eaf1f8}
-.muted{color:#64748b}
-.error{color:#b91c1c}
-.ok{color:#15803d}
-#message{padding:8px;white-space:pre-wrap}
-#login{max-width:450px;margin:40px auto}
-.editbox{border:2px solid #9dc8e8}
-@media print{
-header,.tabs,button,form,#message,.no-print,#login{display:none!important}
-body{background:white}
-.card{box-shadow:none}
-#staffArea:not(.hidden) .page{display:none!important}
-#staffArea:not(.hidden) #ledger{display:block!important}
-#customerArea:not(.hidden){display:block!important}
-}
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#183047;font:15px system-ui,Arial}header{background:#143e62;color:#fff;padding:19px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;color:#d5e5f4}.wrap{max-width:1100px;margin:auto;padding:15px}.card{background:#fff;border-radius:14px;padding:18px;margin:12px 0;box-shadow:0 3px 15px #1232}#login{max-width:460px;margin:50px auto}label{display:block;font-weight:650;margin-top:10px}input,select,textarea{width:100%;padding:12px;margin:5px 0 10px;border:1px solid #cbd6e2;border-radius:9px;font:inherit}button{border:0;background:#176ca9;color:#fff;border-radius:9px;padding:11px 15px;font:inherit;cursor:pointer;margin:3px}button:disabled{opacity:.6}.danger{background:#a12c3c}.actionbtn{padding:7px 10px;font-size:12px}.editbox{border:2px solid #b9d5eb;background:#f6fbff}.editbox h3{margin-top:0}.muted{color:#607186}.hidden{display:none!important}.flex{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.stat{background:#eaf3fc;border-radius:10px;padding:14px}.stat strong{display:block;font-size:22px;margin-top:5px}.tabs{display:flex;flex-wrap:wrap;gap:6px}.tabs button{background:#e1ebf4;color:#174164}.tabs button.active{background:#176ca9;color:white}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:560px;font-size:13px}th,td{text-align:left;border-bottom:1px solid #e1e9f1;padding:10px}th{background:#edf4fa}#message{padding:8px 0;white-space:pre-wrap}.error{color:#b01e30}.ok{color:#12733e}@media print{header,.tabs,form,button,#message,.no-print,#login,.not-print,.page:not(#ledger){display:none!important}body:has(#customerArea:not(.hidden)) #staffArea{display:none!important}body:has(#customerArea:not(.hidden)) #customerArea{display:block!important}body{background:white}.card{box-shadow:none}#ledger{display:block!important}}
 </style>
 </head>
 <body>
-
-<header>
-<div class="flex">
-<div>
-<h1>Tajkiya Enterprise</h1>
-<p>Riyal Business & Party Ledger</p>
-</div>
-<button id="logout" class="hidden">Logout</button>
-</div>
-</header>
-
-<div class="wrap">
-<div id="message"></div>
-
-<section id="login" class="card">
-<h2>Login</h2>
-<form id="loginForm">
-<label>Email</label>
-<input id="email" type="email" required autocomplete="username">
-<label>Password</label>
-<input id="password" type="password" required autocomplete="current-password">
-<button type="submit">Login</button>
-</form>
-<p class="muted">Admin, Employee ও Customer Login</p>
-</section>
-
-<main id="app" class="hidden">
-<div class="card flex">
-<div>
-<strong id="welcome"></strong>
-<p id="roleText" class="muted"></p>
-</div>
-<span id="today"></span>
-</div>
-
-<div id="staffArea" class="hidden">
-<nav class="tabs no-print">
-<button data-tab="dashboard" class="active">Dashboard</button>
-<button data-tab="parties">Parties</button>
-<button data-tab="sales">Riyal Sales</button>
-<button data-tab="payments">Payments</button>
-<button data-tab="ledger">Party Ledger</button>
-<button id="customerTab" data-tab="customers" class="hidden">Create Customer</button>
-</nav>
-
-<section id="dashboard" class="card page">
-<h2>Business Overview</h2>
-<div class="grid">
-<div class="stat">Total Riyal Sold<strong id="totalSar">0</strong></div>
-<div class="stat">Total Sales BDT<strong id="totalSales">0</strong></div>
-<div class="stat">Payments BDT<strong id="totalPayments">0</strong></div>
-<div class="stat">Outstanding BDT<strong id="totalDue">0</strong></div>
-<div class="stat">Gross Profit BDT<strong id="totalProfit">0</strong></div>
-<div class="stat">Registered Parties<strong id="partyCount">0</strong></div>
-</div>
-<p class="muted">Due = Opening Due + Sales - Payments</p>
-<button id="refresh">Refresh</button>
-</section>
-
-<section id="parties" class="card page hidden">
-<h2>Party Management</h2>
-<form id="partyForm">
-<div class="grid">
-<div><label>Party Name</label><input id="partyName" required></div>
-<div><label>Phone</label><input id="partyPhone"></div>
-<div><label>Address</label><input id="partyAddress"></div>
-<div><label>Opening Due BDT</label><input id="partyOpening" type="number" step="0.01" value="0" required></div>
-</div>
-<button type="submit">Add Party</button>
-</form>
-<div id="partyEditor" class="card editbox hidden">
-<h3>Edit Party</h3>
-<form id="editPartyForm">
-<label>Name</label><input id="editPartyName" required>
-<label>Phone</label><input id="editPartyPhone">
-<label>Address</label><input id="editPartyAddress">
-<label>Opening Due</label><input id="editPartyOpening" type="number" step="0.01" required>
-<button type="submit">Update Party</button>
-<button type="button" id="cancelPartyEdit" class="secondary">Cancel</button>
-</form>
-</div>
-<h3>Party List</h3>
-<input id="partySearch" placeholder="Search party">
-<div class="tablewrap">
-<table>
-<thead><tr><th>Party</th><th>Phone</th><th>Opening Due</th><th>Current Due</th><th>Actions</th></tr></thead>
-<tbody id="partyRows"></tbody>
-</table>
-</div>
-</section>
-
-<section id="sales" class="card page hidden">
-<h2>Riyal Sales</h2>
-<form id="saleForm">
-<div class="grid">
-<div><label>Party</label><select id="saleParty" required></select></div>
-<div><label>Date</label><input id="saleDate" type="date" required></div>
-<div><label>SAR Amount</label><input id="saleSar" type="number" step="0.01" min="0.01" required></div>
-<div><label>Selling Rate</label><input id="saleRate" type="number" step="0.0001" min="0.0001" required></div>
-<div><label>Cost Rate</label><input id="costRate" type="number" step="0.0001" min="0" required></div>
-<div><label>Notes</label><input id="saleNotes"></div>
-</div>
-<p id="salePreview"></p>
-<button type="submit">Save Sale</button>
-</form>
-<div id="saleEditor" class="card editbox hidden">
-<h3>Edit Sale</h3>
-<form id="editSaleForm">
-<label>Party</label><select id="editSaleParty" required></select>
-<label>Date</label><input id="editSaleDate" type="date" required>
-<label>SAR Amount</label><input id="editSaleSar" type="number" step="0.01" required>
-<label>Selling Rate</label><input id="editSaleRate" type="number" step="0.0001" required>
-<label>Cost Rate</label><input id="editSaleCost" type="number" step="0.0001" required>
-<label>Notes</label><input id="editSaleNotes">
-<button type="submit">Update Sale</button>
-<button type="button" id="cancelSaleEdit" class="secondary">Cancel</button>
-</form>
-</div>
-<h3>Sales History</h3>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Profit</th><th>Actions</th></tr></thead>
-<tbody id="saleRows"></tbody>
-</table>
-</div>
-</section>
-
-<section id="payments" class="card page hidden">
-<h2>Payment Received (BDT)</h2>
-<form id="paymentForm">
-<div class="grid">
-<div><label>Party</label><select id="paymentParty" required></select></div>
-<div><label>Date</label><input id="paymentDate" type="date" required></div>
-<div><label>Amount BDT</label><input id="paymentAmount" type="number" min="0.01" step="0.01" required></div>
-<div><label>Reference</label><input id="paymentRef"></div>
-<div><label>Notes</label><input id="paymentNotes"></div>
-</div>
-<button type="submit">Save Payment</button>
-</form>
-<div id="paymentEditor" class="card editbox hidden">
-<h3>Edit Payment</h3>
-<form id="editPaymentForm">
-<label>Party</label><select id="editPaymentParty" required></select>
-<label>Date</label><input id="editPaymentDate" type="date" required>
-<label>Amount</label><input id="editPaymentAmount" type="number" step="0.01" required>
-<label>Reference</label><input id="editPaymentRef">
-<label>Notes</label><input id="editPaymentNotes">
-<button type="submit">Update Payment</button>
-<button type="button" id="cancelPaymentEdit" class="secondary">Cancel</button>
-</form>
-</div>
-<h3>Payment History</h3>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Date</th><th>Party</th><th>Received BDT</th><th>Reference</th><th>Actions</th></tr></thead>
-<tbody id="paymentRows"></tbody>
-</table>
-</div>
-</section>
-
-<section id="ledger" class="card page hidden">
-<h2>Party Ledger</h2>
-<label>Choose Party</label>
-<select id="ledgerParty"></select>
-<div class="grid">
-<div class="stat">Sales BDT<strong id="ledgerSales">0</strong></div>
-<div class="stat">Received BDT<strong id="ledgerPaid">0</strong></div>
-<div class="stat">Due BDT<strong id="ledgerDue">0</strong></div>
-</div>
-<div class="no-print">
-<button id="csv">Export Excel CSV</button>
-<button id="print">Print / Save PDF</button>
-</div>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Date</th><th>Details</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
-<tbody id="ledgerRows"></tbody>
-</table>
-</div>
-</section>
-
-<section id="customers" class="card page hidden">
-<h2>Create Customer Account</h2>
-<p class="muted">Admin only</p>
-<form id="customerForm">
-<label>Customer Name</label>
-<input id="customerName" required>
-<label>Email</label>
-<input id="customerEmail" type="email" required>
-<label>Password (minimum 12 characters)</label>
-<input id="customerPassword" type="password" minlength="12" autocomplete="new-password" required>
-<label>Link to Party</label>
-<select id="customerParty" required></select>
-<button type="submit">Create Customer</button>
-</form>
-<p id="customerResult"></p>
-</section>
-</div>
-
-<section id="customerArea" class="card hidden">
-<h2>My Party Ledger</h2>
-<h3 id="customerPartyName"></h3>
-<div class="grid">
-<div class="stat">Opening Due<strong id="cOpening">0</strong></div>
-<div class="stat">Total Sales<strong id="cSales">0</strong></div>
-<div class="stat">Payments<strong id="cPaid">0</strong></div>
-<div class="stat">Current Due<strong id="cDue">0</strong></div>
-</div>
-<div class="no-print">
-<button id="customerCsv">Download Excel CSV</button>
-<button id="customerPrint">Print / Save PDF</button>
-<button id="customerRefresh">Refresh</button>
-</div>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Date</th><th>Details</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
-<tbody id="customerLedgerRows"></tbody>
-</table>
-</div>
-</section>
-</main>
-</div>
-
+<header><div class="flex"><div><h1>Tajkiya Enterprise</h1><p>Riyal Business &amp; Party Ledger</p></div><button id="logout" class="hidden">Logout</button></div></header>
+<div class="wrap"><div id="message" role="status"></div>
+<section id="login" class="card"><h2>Login</h2><form id="loginForm"><label>Email</label><input id="email" type="email" autocomplete="username" required><label>Password</label><input id="password" type="password" autocomplete="current-password" required><button type="submit">Login</button></form><p class="muted">Admin, Employee ও Customer একই লগইন ব্যবহার করবেন।</p></section>
+<main id="app" class="hidden"><div class="card flex"><div><strong id="welcome"></strong><div id="roleText" class="muted"></div></div><span id="today"></span></div>
+<div id="staffArea" class="hidden"><nav class="tabs no-print"><button data-tab="dashboard" class="active">Dashboard</button><button data-tab="parties">Parties</button><button data-tab="sales">Riyal Sales</button><button data-tab="payments">Payments</button><button data-tab="ledger">Party Ledger</button><button id="customerTab" data-tab="customers" class="hidden">Create Customer</button></nav>
+<section id="dashboard" class="card page"><h2>Business Overview</h2><div class="grid"><div class="stat">Total Riyal Sold<strong id="totalSar">0</strong></div><div class="stat">Total Sales (BDT)<strong id="totalSales">0</strong></div><div class="stat">Payments (BDT)<strong id="totalPayments">0</strong></div><div class="stat">Outstanding (BDT)<strong id="totalDue">0</strong></div><div class="stat">Gross Profit (BDT)<strong id="totalProfit">0</strong></div><div class="stat">Registered Parties<strong id="partyCount">0</strong></div></div><p class="muted">Outstanding = Opening Due + Sales − Payments. Gross profit = (Selling Rate − Cost Rate) × SAR; অন্যান্য খরচ বাদ দেওয়া হয়নি।</p><button id="refresh">Refresh</button></section>
+<section id="parties" class="card page hidden"><h2>Register Party</h2><form id="partyForm"><div class="grid"><div><label>Party Name (English)</label><input id="partyName" required></div><div><label>Mobile</label><input id="partyPhone"></div><div><label>Address</label><input id="partyAddress"></div><div><label>Opening Due (BDT)</label><input id="partyOpening" type="number" min="0" step="0.01" value="0" required></div></div><button type="submit">Add Party</button></form><div id="partyEditor" class="card editbox hidden no-print"><h3>Edit Party</h3><form id="editPartyForm"><div class="grid"><div><label>Party Name</label><input id="editPartyName" required></div><div><label>Mobile</label><input id="editPartyPhone"></div><div><label>Address</label><input id="editPartyAddress"></div><div><label>Opening Due (BDT)</label><input id="editPartyOpening" type="number" min="0" step="0.01" required></div></div><button type="submit">Update Party</button><button type="button" id="cancelPartyEdit">Cancel</button></form></div><h3>Party List</h3><input id="partySearch" placeholder="Search party name or mobile"><div class="tablewrap"><table><thead><tr><th>Party</th><th>Phone</th><th>Opening Due</th><th>Current Due</th><th class="no-print">Actions</th></tr></thead><tbody id="partyRows"></tbody></table></div></section>
+<section id="sales" class="card page hidden"><h2>Riyal Sale</h2><form id="saleForm"><div class="grid"><div><label>Party</label><select id="saleParty" required></select></div><div><label>Date</label><input id="saleDate" type="date" required></div><div><label>SAR Amount</label><input id="saleSar" type="number" min="0.01" step="0.01" required></div><div><label>Selling Rate (BDT/SAR)</label><input id="saleRate" type="number" min="0.0001" step="0.0001" required></div><div><label>Cost Rate (BDT/SAR)</label><input id="costRate" type="number" min="0" step="0.0001" required></div><div><label>Notes</label><input id="saleNotes"></div></div><p id="salePreview" class="muted"></p><button type="submit">Save Sale</button></form><div id="saleEditor" class="card editbox hidden no-print"><h3>Edit Sale</h3><form id="editSaleForm"><div class="grid"><div><label>Party</label><select id="editSaleParty" required></select></div><div><label>Date</label><input id="editSaleDate" type="date" required></div><div><label>SAR Amount</label><input id="editSaleSar" type="number" min="0.01" step="0.01" required></div><div><label>Selling Rate</label><input id="editSaleRate" type="number" min="0.0001" step="0.0001" required></div><div><label>Cost Rate</label><input id="editSaleCost" type="number" min="0" step="0.0001" required></div><div><label>Notes</label><input id="editSaleNotes"></div></div><button type="submit">Update Sale</button><button type="button" id="cancelSaleEdit">Cancel</button></form></div><h3>Sales History</h3><div class="tablewrap"><table><thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Gross Profit</th><th class="no-print">Actions</th></tr></thead><tbody id="saleRows"></tbody></table></div></section>
+<section id="payments" class="card page hidden"><h2>Payment Received (BDT)</h2><form id="paymentForm"><div class="grid"><div><label>Party</label><select id="paymentParty" required></select></div><div><label>Date</label><input id="paymentDate" type="date" required></div><div><label>Amount Received (BDT)</label><input id="paymentAmount" type="number" min="0.01" step="0.01" required></div><div><label>Reference</label><input id="paymentRef"></div><div><label>Notes</label><input id="paymentNotes"></div></div><button type="submit">Save Payment</button></form><div id="paymentEditor" class="card editbox hidden no-print"><h3>Edit Payment</h3><form id="editPaymentForm"><div class="grid"><div><label>Party</label><select id="editPaymentParty" required></select></div><div><label>Date</label><input id="editPaymentDate" type="date" required></div><div><label>Amount Received (BDT)</label><input id="editPaymentAmount" type="number" min="0.01" step="0.01" required></div><div><label>Reference</label><input id="editPaymentRef"></div><div><label>Notes</label><input id="editPaymentNotes"></div></div><button type="submit">Update Payment</button><button type="button" id="cancelPaymentEdit">Cancel</button></form></div><h3>Payment History</h3><div class="tablewrap"><table><thead><tr><th>Date</th><th>Party</th><th>BDT Received</th><th>Reference</th><th class="no-print">Actions</th></tr></thead><tbody id="paymentRows"></tbody></table></div></section>
+<section id="ledger" class="card page hidden"><h2>Party Ledger</h2><label>Choose Party</label><select id="ledgerParty"></select><div class="grid"><div class="stat">Sold (BDT)<strong id="ledgerSales">0</strong></div><div class="stat">Received (BDT)<strong id="ledgerPaid">0</strong></div><div class="stat">Due (BDT)<strong id="ledgerDue">0</strong></div></div><div class="no-print"><button id="csv">Export CSV (Excel)</button><button id="print">Print / Save PDF</button></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>Details</th><th>Debit BDT</th><th>Credit BDT</th><th>Balance BDT</th></tr></thead><tbody id="ledgerRows"></tbody></table></div></section>
+<section id="customers" class="card page hidden"><h2>Create Customer Login</h2><p class="muted">Admin only. Customer can see only the linked party.</p><form id="customerForm"><div class="grid"><div><label>Customer Name</label><input id="customerName" required></div><div><label>Email</label><input id="customerEmail" type="email" autocomplete="off" required></div><div><label>Password (minimum 12 characters)</label><input id="customerPassword" type="password" minlength="12" autocomplete="new-password" required></div><div><label>Link to Party</label><select id="customerParty" required></select></div></div><button type="submit">Create Customer Account</button></form><p id="customerResult" class="muted"></p></section>
+</div><section id="customerArea" class="card hidden"><h2>My Party Ledger</h2><p id="customerPartyName"></p><div class="grid"><div class="stat">Opening Due (BDT)<strong id="cOpening">0</strong></div><div class="stat">Total Sales (BDT)<strong id="cSales">0</strong></div><div class="stat">Payments (BDT)<strong id="cPaid">0</strong></div><div class="stat">Current Due (BDT)<strong id="cDue">0</strong></div></div><div class="no-print"><button id="customerCsv">Download Excel (CSV)</button><button id="customerPrint">Print / Save PDF</button><button id="customerRefresh">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>Details</th><th>Debit BDT</th><th>Credit BDT</th><th>Balance BDT</th></tr></thead><tbody id="customerLedgerRows"></tbody></table></div></section></main></div>
 <script>
-const SUPABASE_URL="https://kncdwgnhylfgrflytnst.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY="sb_publishable_zxVlVwBqk_EhWPuaWFNFpw_ZFIbzMHf";
-const FUNCTION_NAME="create-customer-";
-
+const SUPABASE_URL='https://kncdwgnhylfgrflytnst.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_zxVlVwBqk_EhWPuaWFNFpw_ZFIbzMHf';
 const $=id=>document.getElementById(id);
-const money=n=>Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-const safe=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const num=id=>Number($(id).value);
-const val=id=>$(id).value.trim();
-
-let db,me=null,role="",parties=[],sales=[],payments=[];
-let ledgerData=[],customerLedgerData=[],customerParty=null;
-let editing={party:null,sale:null,payment:null};
-
-function notice(msg,error=false){
-$("message").textContent=msg;
-$("message").className=error?"error":"ok";
-}
-function check(result){
-if(result.error)throw result.error;
-return result.data;
-}
-function today(){
-const d=new Date();
-return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
-}
-function canEdit(){return role==="admin"}
-function partyName(id){
-return parties.find(x=>x.id===id)?.name||"Unknown";
-}
-function due(p){
-return Number(p.opening_due_bdt||0)
-+sales.filter(x=>x.party_id===p.id).reduce((a,x)=>a+Number(x.total_bdt||0),0)
--payments.filter(x=>x.party_id===p.id).reduce((a,x)=>a+Number(x.amount_bdt||0),0);
-}
-function actionButtons(type,id){
-if(!canEdit())return "";
-return `<button data-action="edit" data-type="${type}" data-id="${id}">Edit</button><button class="danger" data-action="delete" data-type="${type}" data-id="${id}">Delete</button>`;
-}
-function tab(name){
-document.querySelectorAll(".page").forEach(x=>x.classList.toggle("hidden",x.id!==name));
-document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
-if(name==="ledger")renderLedger();
-}
-document.querySelectorAll("[data-tab]").forEach(b=>{
-b.onclick=()=>tab(b.dataset.tab);
-});
-
-async function loginView(){
-const {data:{session},error}=await db.auth.getSession();
-if(error)throw error;
-if(!session){
-me=null;role="";
-$("login").classList.remove("hidden");
-$("app").classList.add("hidden");
-$("logout").classList.add("hidden");
-return;
-}
-me=session.user;
-const profile=check(await db.from("profiles").select("id,full_name,role,party_id").eq("id",me.id).single());
-role=profile.role;
-$("welcome").textContent="Welcome, "+(profile.full_name||me.email);
-$("roleText").textContent="Role: "+role;
-$("login").classList.add("hidden");
-$("app").classList.remove("hidden");
-$("logout").classList.remove("hidden");
-const staff=["admin","employee"].includes(role);
-$("staffArea").classList.toggle("hidden",!staff);
-$("customerArea").classList.toggle("hidden",role!=="customer");
-$("customerTab").classList.toggle("hidden",role!=="admin");
-if(staff)await loadAll();
-else if(role==="customer")await loadCustomerLedger(profile.party_id);
-else throw Error("Unknown account role");
-}
-
-$("loginForm").onsubmit=async e=>{
-e.preventDefault();
-try{
-notice("Signing in...");
-check(await db.auth.signInWithPassword({email:val("email"),password:$("password").value}));
-$("password").value="";
-await loginView();
-notice("Login successful");
-}catch(err){notice("Login error: "+err.message,true)}
-};
-$("logout").onclick=async()=>{
-await db.auth.signOut();
-await loginView();
-notice("Logged out");
-};
-
-async function loadAll(){
-try{
-notice("Loading...");
-const [p,s,r]=await Promise.all([
-db.from("parties").select("*").order("name"),
-db.from("party_sales").select("*").order("sale_date",{ascending:false}),
-db.from("party_payments").select("*").order("payment_date",{ascending:false})
-]);
-parties=check(p);
-sales=check(s);
-payments=check(r);
-renderAll();
-notice("Data updated");
-}catch(err){notice("Load error: "+err.message,true)}
-}
-
-function renderAll(){
-const totalSar=sales.reduce((a,x)=>a+Number(x.sar_amount||0),0);
-const totalSales=sales.reduce((a,x)=>a+Number(x.total_bdt||0),0);
-const totalPayments=payments.reduce((a,x)=>a+Number(x.amount_bdt||0),0);
-const totalProfit=sales.reduce((a,x)=>a+Number(x.profit_bdt||0),0);
-const opening=parties.reduce((a,x)=>a+Number(x.opening_due_bdt||0),0);
-$("totalSar").textContent=money(totalSar);
-$("totalSales").textContent=money(totalSales);
-$("totalPayments").textContent=money(totalPayments);
-$("totalProfit").textContent=money(totalProfit);
-$("totalDue").textContent=money(opening+totalSales-totalPayments);
-$("partyCount").textContent=parties.length;
-
-const options=parties.map(p=>`<option value="${p.id}">${safe(p.name)}</option>`).join("");
-["saleParty","paymentParty","ledgerParty","customerParty","editSaleParty","editPaymentParty"].forEach(id=>{
-const old=$(id).value;
-$(id).innerHTML='<option value="">Select Party</option>'+options;
-if(parties.some(p=>p.id===old))$(id).value=old;
-});
-renderParties();
-renderSales();
-renderPayments();
-renderLedger();
-}
-
-function renderParties(){
-const q=val("partySearch").toLowerCase();
-$("partyRows").innerHTML=parties.filter(p=>(p.name+" "+(p.phone||"")).toLowerCase().includes(q)).map(p=>`
-<tr>
-<td>${safe(p.name)}</td>
-<td>${safe(p.phone)}</td>
-<td>${money(p.opening_due_bdt)}</td>
-<td>${money(due(p))}</td>
-<td>${actionButtons("party",p.id)}</td>
-</tr>`).join("");
-}
-function renderSales(){
-$("saleRows").innerHTML=sales.map(s=>`
-<tr>
-<td>${safe(s.sale_date)}</td>
-<td>${safe(partyName(s.party_id))}</td>
-<td>${money(s.sar_amount)}</td>
-<td>${money(s.selling_rate)}</td>
-<td>${money(s.total_bdt)}</td>
-<td>${money(s.profit_bdt)}</td>
-<td>${actionButtons("sale",s.id)}</td>
-</tr>`).join("");
-}
-function renderPayments(){
-$("paymentRows").innerHTML=payments.map(p=>`
-<tr>
-<td>${safe(p.payment_date)}</td>
-<td>${safe(partyName(p.party_id))}</td>
-<td>${money(p.amount_bdt)}</td>
-<td>${safe(p.reference)}</td>
-<td>${actionButtons("payment",p.id)}</td>
-</tr>`).join("");
-}
-$("partySearch").oninput=renderParties;
-
-const cfg={
-party:{table:"parties",items:()=>parties,box:"partyEditor"},
-sale:{table:"party_sales",items:()=>sales,box:"saleEditor"},
-payment:{table:"party_payments",items:()=>payments,box:"paymentEditor"}
-};
-function hideEditor(type){
-editing[type]=null;
-$(cfg[type].box).classList.add("hidden");
-}
-function editRecord(type,id){
-if(!canEdit())return notice("Admin only",true);
-const x=cfg[type].items().find(v=>v.id===id);
-if(!x)return;
-editing[type]=id;
-if(type==="party"){
-$("editPartyName").value=x.name||"";
-$("editPartyPhone").value=x.phone||"";
-$("editPartyAddress").value=x.address||"";
-$("editPartyOpening").value=x.opening_due_bdt||0;
-}
-if(type==="sale"){
-$("editSaleParty").value=x.party_id;
-$("editSaleDate").value=x.sale_date;
-$("editSaleSar").value=x.sar_amount;
-$("editSaleRate").value=x.selling_rate;
-$("editSaleCost").value=x.cost_rate;
-$("editSaleNotes").value=x.notes||"";
-}
-if(type==="payment"){
-$("editPaymentParty").value=x.party_id;
-$("editPaymentDate").value=x.payment_date;
-$("editPaymentAmount").value=x.amount_bdt;
-$("editPaymentRef").value=x.reference||"";
-$("editPaymentNotes").value=x.notes||"";
-}
-$(cfg[type].box).classList.remove("hidden");
-$(cfg[type].box).scrollIntoView({behavior:"smooth"});
-}
-async function updateRecord(type,payload){
-if(!canEdit()||!editing[type])return;
-try{
-const rows=check(await db.from(cfg[type].table).update(payload).eq("id",editing[type]).select("id"));
-if(!rows.length)throw Error("Update permission denied");
-hideEditor(type);
-await loadAll();
-notice("Updated successfully");
-}catch(err){notice("Update error: "+err.message,true)}
-}
+const money=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db,me=null,role='',parties=[],sales=[],payments=[],ledgerData=[],customerLedgerData=[],customerParty=null;let editing={party:null,sale:null,payment:null};const canEdit=()=>role==='admin';
+function notice(msg,error=false){$('message').textContent=msg;$('message').className=error?'error':'ok'}
+function today(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
+function check(r){if(r.error)throw r.error;return r.data}
+function tab(name){if(name==='customers'&&role!=='admin')return;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('hidden',e.id!==name));document.querySelectorAll('[data-tab]').forEach(e=>e.classList.toggle('active',e.dataset.tab===name));if(name==='ledger')renderLedger()}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{if(!b.classList.contains('hidden'))tab(b.dataset.tab)}));
+async function loginView(){const {data:{session},error}=await db.auth.getSession();if(error)throw error;if(!session){me=null;role='';$('login').classList.remove('hidden');$('app').classList.add('hidden');$('logout').classList.add('hidden');return}me=session.user;const profile=check(await db.from('profiles').select('id,full_name,role,party_id').eq('id',me.id).single());role=profile.role;$('welcome').textContent='Welcome, '+(profile.full_name||me.email);$('roleText').textContent='Role: '+role;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');$('staffArea').classList.toggle('hidden',!['admin','employee'].includes(role));$('customerArea').classList.toggle('hidden',role!=='customer');$('customerTab').classList.toggle('hidden',role!=='admin');if(['admin','employee'].includes(role)){tab('dashboard');await loadAll()}else if(role==='customer'){await loadCustomerLedger(profile.party_id)}else{throw Error('Unknown account role. Contact admin.')}}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();try{notice('Signing in...');check(await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value}));$('password').value='';await loginView();notice('Login successful')}catch(err){notice('Login error: '+err.message,true)}});
+$('logout').onclick=async()=>{await db.auth.signOut();notice('Logged out');await loginView()};
+async function loadAll(){try{notice('Loading data...');const [p,s,r]=await Promise.all([db.from('parties').select('*').order('name'),db.from('party_sales').select('*').order('sale_date',{ascending:false}).order('created_at',{ascending:false}),db.from('party_payments').select('*').order('payment_date',{ascending:false}).order('created_at',{ascending:false})]);parties=check(p);sales=check(s);payments=check(r);renderAll();notice('Data updated')}catch(err){notice('Data load error: '+err.message,true)}}
+function partyName(id){return parties.find(p=>p.id===id)?.name||'Unknown'}
+function due(p){return Number(p.opening_due_bdt||0)+sales.filter(s=>s.party_id===p.id).reduce((a,s)=>a+Number(s.total_bdt),0)-payments.filter(x=>x.party_id===p.id).reduce((a,x)=>a+Number(x.amount_bdt),0)}
+function renderAll(){const sar=sales.reduce((a,x)=>a+Number(x.sar_amount),0),sold=sales.reduce((a,x)=>a+Number(x.total_bdt),0),paid=payments.reduce((a,x)=>a+Number(x.amount_bdt),0),profit=sales.reduce((a,x)=>a+Number(x.profit_bdt),0);$('totalSar').textContent=money(sar);$('totalSales').textContent=money(sold);$('totalPayments').textContent=money(paid);$('totalDue').textContent=money(parties.reduce((a,p)=>a+due(p),0));$('totalProfit').textContent=money(profit);$('partyCount').textContent=parties.length;const opts='<option value="">Select Party</option>'+parties.map(p=>`<option value="${safe(p.id)}">${safe(p.name)}</option>`).join('');['saleParty','paymentParty','ledgerParty','editSaleParty','editPaymentParty','customerParty'].forEach(id=>{const old=$(id).value;$(id).innerHTML=opts;if(parties.some(p=>p.id===old))$(id).value=old});renderParties();$('saleRows').innerHTML=sales.map(x=>`<tr><td>${safe(x.sale_date)}</td><td>${safe(partyName(x.party_id))}</td><td>${money(x.sar_amount)}</td><td>${money(x.selling_rate)}</td><td>${money(x.total_bdt)}</td><td>${money(x.profit_bdt)}</td><td class="no-print">${canEdit()?`<button class="actionbtn" data-action="edit" data-type="sale" data-id="${safe(x.id)}">Edit</button><button class="actionbtn danger" data-action="delete" data-type="sale" data-id="${safe(x.id)}">Delete</button>`:'Admin only'}</td></tr>`).join('');$('paymentRows').innerHTML=payments.map(x=>`<tr><td>${safe(x.payment_date)}</td><td>${safe(partyName(x.party_id))}</td><td>${money(x.amount_bdt)}</td><td>${safe(x.reference)}</td><td class="no-print">${canEdit()?`<button class="actionbtn" data-action="edit" data-type="payment" data-id="${safe(x.id)}">Edit</button><button class="actionbtn danger" data-action="delete" data-type="payment" data-id="${safe(x.id)}">Delete</button>`:'Admin only'}</td></tr>`).join('');renderLedger()}
+function renderParties(){const q=$('partySearch').value.trim().toLowerCase();$('partyRows').innerHTML=parties.filter(p=>(p.name+' '+(p.phone||'')).toLowerCase().includes(q)).map(p=>`<tr><td>${safe(p.name)}<div class="muted">${safe(p.address)}</div></td><td>${safe(p.phone)}</td><td>${money(p.opening_due_bdt)}</td><td>${money(due(p))}</td><td class="no-print">${canEdit()?`<button class="actionbtn" data-action="edit" data-type="party" data-id="${safe(p.id)}">Edit</button><button class="actionbtn danger" data-action="delete" data-type="party" data-id="${safe(p.id)}">Delete</button>`:'Admin only'}</td></tr>`).join('')}
+$('partySearch').oninput=renderParties;
+const cfg={party:{items:()=>parties,table:'parties',box:'partyEditor'},sale:{items:()=>sales,table:'party_sales',box:'saleEditor'},payment:{items:()=>payments,table:'party_payments',box:'paymentEditor'}};
+function hideEditor(type){editing[type]=null;$(cfg[type].box).classList.add('hidden')}
+function editRecord(type,id){if(!canEdit())return notice('Only admin can edit records',true);const x=cfg[type].items().find(v=>String(v.id)===String(id));if(!x)return notice('Record not found',true);editing[type]=id;
+if(type==='party'){ $('editPartyName').value=x.name||'';$('editPartyPhone').value=x.phone||'';$('editPartyAddress').value=x.address||'';$('editPartyOpening').value=x.opening_due_bdt||0;}
+if(type==='sale'){$('editSaleParty').value=x.party_id;$('editSaleDate').value=x.sale_date;$('editSaleSar').value=x.sar_amount;$('editSaleRate').value=x.selling_rate;$('editSaleCost').value=x.cost_rate;$('editSaleNotes').value=x.notes||'';}
+if(type==='payment'){$('editPaymentParty').value=x.party_id;$('editPaymentDate').value=x.payment_date;$('editPaymentAmount').value=x.amount_bdt;$('editPaymentRef').value=x.reference||'';$('editPaymentNotes').value=x.notes||'';}
+$(cfg[type].box).classList.remove('hidden');$(cfg[type].box).scrollIntoView({behavior:'smooth',block:'start'});}
+async function updateRecord(type,payload){if(!canEdit()||!editing[type])return notice('Admin permission required',true);try{const id=editing[type];const result=await db.from(cfg[type].table).update(payload).eq('id',id).select('id');const updated=check(result);if(!updated?.length)throw Error('No row updated. Check Supabase UPDATE policy.');hideEditor(type);await loadAll();notice('Updated successfully');}catch(err){notice('Update error: '+err.message,true)}}
 async function deleteRecord(type,id){
-if(!canEdit())return notice("Admin only",true);
-if(type==="party"&&(sales.some(x=>x.party_id===id)||payments.some(x=>x.party_id===id))){
-return notice("Party has transactions. Delete or reassign them first.",true);
+  if(!canEdit())return notice('Only admin can delete records',true);
+  const x=cfg[type].items().find(v=>String(v.id)===String(id));
+  if(!x)return notice('Record not found. Refresh and try again.',true);
+  if(type==='party'){
+    if(!confirm('Delete party "'+x.name+'"? This is permanent. The server will block deletion if any sales, payments, or customer login is linked.'))return;
+    try{
+      // Admin-only database function checks linked records atomically before deletion.
+      const {error}=await db.rpc('safe_delete_party',{p_party_id:id});
+      if(error)throw error;
+      hideEditor('party');
+      await loadAll();
+      if(parties.some(p=>String(p.id)===String(id)))throw Error('Party still exists. Please check permissions and refresh.');
+      notice('Party deleted safely');
+    }catch(err){notice('Safe Party Delete error: '+err.message,true)}
+    return;
+  }
+  if(!confirm('Permanently DELETE this '+type+' record? This cannot be undone.'))return;
+  try{
+    const removed=check(await db.from(cfg[type].table).delete().eq('id',id).select('id'));
+    if(!removed?.length)throw Error('No row deleted. Check Supabase DELETE policy.');
+    hideEditor(type);
+    await loadAll();
+    notice('Deleted successfully');
+  }catch(err){notice('Delete error: '+err.message,true)}
 }
-if(!confirm("Permanently delete this "+type+"?"))return;
-try{
-const rows=check(await db.from(cfg[type].table).delete().eq("id",id).select("id"));
-if(!rows.length)throw Error("Delete permission denied");
-hideEditor(type);
-await loadAll();
-notice("Deleted successfully");
-}catch(err){notice("Delete error: "+err.message,true)}
-}
-document.addEventListener("click",e=>{
-const b=e.target.closest("button[data-action]");
-if(!b)return;
-const {action,type,id}=b.dataset;
-if(!cfg[type])return;
-if(action==="edit")editRecord(type,id);
-if(action==="delete")deleteRecord(type,id);
-});
-["Party","Sale","Payment"].forEach(t=>{
-$("cancel"+t+"Edit").onclick=()=>hideEditor(t.toLowerCase());
-});
+document.addEventListener('click',e=>{const b=e.target.closest('button[data-action][data-type][data-id]');if(!b)return;const {action,type,id}=b.dataset;if(!cfg[type])return;if(action==='edit')editRecord(type,id);if(action==='delete')deleteRecord(type,id)});
+['Sale','Payment','Party'].forEach(t=>{$('cancel'+t+'Edit').onclick=()=>hideEditor(t.toLowerCase())});
+$('editPartyForm').onsubmit=e=>{e.preventDefault();updateRecord('party',{name:$('editPartyName').value.trim(),phone:$('editPartyPhone').value.trim(),address:$('editPartyAddress').value.trim(),opening_due_bdt:Number($('editPartyOpening').value)})};
+$('editSaleForm').onsubmit=e=>{e.preventDefault();updateRecord('sale',{party_id:$('editSaleParty').value,sale_date:$('editSaleDate').value,sar_amount:Number($('editSaleSar').value),selling_rate:Number($('editSaleRate').value),cost_rate:Number($('editSaleCost').value),notes:$('editSaleNotes').value.trim()})};
+$('editPaymentForm').onsubmit=e=>{e.preventDefault();updateRecord('payment',{party_id:$('editPaymentParty').value,payment_date:$('editPaymentDate').value,amount_bdt:Number($('editPaymentAmount').value),reference:$('editPaymentRef').value.trim(),notes:$('editPaymentNotes').value.trim()})};
 
-$("editPartyForm").onsubmit=e=>{
-e.preventDefault();
-updateRecord("party",{
-name:val("editPartyName"),
-phone:val("editPartyPhone"),
-address:val("editPartyAddress"),
-opening_due_bdt:num("editPartyOpening")
-});
-};
-$("editSaleForm").onsubmit=e=>{
-e.preventDefault();
-updateRecord("sale",{
-party_id:val("editSaleParty"),
-sale_date:val("editSaleDate"),
-sar_amount:num("editSaleSar"),
-selling_rate:num("editSaleRate"),
-cost_rate:num("editSaleCost"),
-notes:val("editSaleNotes")
-});
-};
-$("editPaymentForm").onsubmit=e=>{
-e.preventDefault();
-updateRecord("payment",{
-party_id:val("editPaymentParty"),
-payment_date:val("editPaymentDate"),
-amount_bdt:num("editPaymentAmount"),
-reference:val("editPaymentRef"),
-notes:val("editPaymentNotes")
-});
-};
-
-async function save(table,payload,form){
-try{
-if(!me)throw Error("Login required");
-payload.created_by=me.id;
-check(await db.from(table).insert(payload));
-form.reset();
-$("saleDate").value=today();
-$("paymentDate").value=today();
-await loadAll();
-notice("Saved successfully");
-}catch(err){notice("Save error: "+err.message,true)}
-}
-$("partyForm").onsubmit=e=>{
-e.preventDefault();
-save("parties",{
-name:val("partyName"),
-phone:val("partyPhone"),
-address:val("partyAddress"),
-opening_due_bdt:num("partyOpening")
-},e.target);
-};
-$("saleForm").onsubmit=e=>{
-e.preventDefault();
-save("party_sales",{
-party_id:val("saleParty"),
-sale_date:val("saleDate"),
-sar_amount:num("saleSar"),
-selling_rate:num("saleRate"),
-cost_rate:num("costRate"),
-notes:val("saleNotes")
-},e.target);
-};
-$("paymentForm").onsubmit=e=>{
-e.preventDefault();
-save("party_payments",{
-party_id:val("paymentParty"),
-payment_date:val("paymentDate"),
-amount_bdt:num("paymentAmount"),
-reference:val("paymentRef"),
-notes:val("paymentNotes")
-},e.target);
-};
-
-function preview(){
-const sar=num("saleSar"),rate=num("saleRate"),cost=num("costRate");
-$("salePreview").textContent="Total: "+money(sar*rate)+" BDT | Gross Profit: "+money(sar*(rate-cost))+" BDT";
-}
-["saleSar","saleRate","costRate"].forEach(id=>$(id).oninput=preview);
-
-function buildLedger(p,s,r){
-const entries=[
-...s.map(x=>({
-date:x.sale_date,
-created:x.created_at||"",
-details:"Sale "+money(x.sar_amount)+" SAR @ "+x.selling_rate,
-debit:Number(x.total_bdt||0),credit:0
-})),
-...r.map(x=>({
-date:x.payment_date,
-created:x.created_at||"",
-details:"Payment received "+(x.reference||""),
-debit:0,credit:Number(x.amount_bdt||0)
-}))
-].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
-let balance=Number(p.opening_due_bdt||0);
-const rows=[{date:"",details:"Opening Due",debit:balance,credit:0,balance}];
-for(const x of entries){
-balance+=x.debit-x.credit;
-rows.push({...x,balance});
-}
-return rows;
-}
-function ledgerHTML(rows){
-return rows.map(x=>`<tr>
-<td>${safe(x.date)}</td>
-<td>${safe(x.details)}</td>
-<td>${money(x.debit)}</td>
-<td>${money(x.credit)}</td>
-<td>${money(x.balance)}</td>
-</tr>`).join("");
-}
-function renderLedger(){
-const p=parties.find(x=>x.id===$("ledgerParty").value);
-if(!p){
-ledgerData=[];
-$("ledgerRows").innerHTML="";
-return;
-}
-const s=sales.filter(x=>x.party_id===p.id);
-const r=payments.filter(x=>x.party_id===p.id);
-$("ledgerSales").textContent=money(s.reduce((a,x)=>a+Number(x.total_bdt||0),0));
-$("ledgerPaid").textContent=money(r.reduce((a,x)=>a+Number(x.amount_bdt||0),0));
-$("ledgerDue").textContent=money(due(p));
-ledgerData=buildLedger(p,s,r);
-$("ledgerRows").innerHTML=ledgerHTML(ledgerData);
-}
-$("ledgerParty").onchange=renderLedger;
-
-function downloadCSV(rows,name){
-const csv="\uFEFF"+rows.map(row=>row.map(v=>{
-let text=String(v??"");
-if(/^[=+\-@\t\r]/.test(text))text="'"+text;
-return '"'+text.replace(/"/g,'""')+'"';
-}).join(",")).join("\r\n");
-const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
-const a=document.createElement("a");
-a.href=url;
-a.download=name;
-a.click();
-setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-function exportLedger(rows,prefix,name){
-downloadCSV([
-["Party",name],
-["Date","Details","Debit BDT","Credit BDT","Balance BDT"],
-...rows.map(x=>[x.date,x.details,x.debit,x.credit,x.balance])
-],prefix+"-"+name.replace(/[^a-z0-9-]/gi,"_")+".csv");
-}
-$("csv").onclick=()=>{
-const p=parties.find(x=>x.id===$("ledgerParty").value);
-if(!p)return notice("Select Party",true);
-exportLedger(ledgerData,"party-ledger",p.name);
-};
-$("print").onclick=()=>window.print();
-$("refresh").onclick=loadAll;
-
+async function save(table,payload,form){try{if(!me)throw Error('Please login again');payload.created_by=me.id;check(await db.from(table).insert(payload));form.reset();$('saleDate').value=today();$('paymentDate').value=today();await loadAll();notice('Saved successfully')}catch(err){notice('Save error: '+err.message,true)}}
+$('partyForm').onsubmit=async e=>{e.preventDefault();await save('parties',{name:$('partyName').value.trim(),phone:$('partyPhone').value.trim(),address:$('partyAddress').value.trim(),opening_due_bdt:Number($('partyOpening').value)},e.target)};
+$('saleForm').onsubmit=async e=>{e.preventDefault();await save('party_sales',{party_id:$('saleParty').value,sale_date:$('saleDate').value,sar_amount:Number($('saleSar').value),selling_rate:Number($('saleRate').value),cost_rate:Number($('costRate').value),notes:$('saleNotes').value.trim()},e.target)};
+$('paymentForm').onsubmit=async e=>{e.preventDefault();await save('party_payments',{party_id:$('paymentParty').value,payment_date:$('paymentDate').value,amount_bdt:Number($('paymentAmount').value),reference:$('paymentRef').value.trim(),notes:$('paymentNotes').value.trim()},e.target)};
+function preview(){const sar=Number($('saleSar').value),rate=Number($('saleRate').value),cost=Number($('costRate').value);$('salePreview').textContent=`Total: ${money(sar*rate)} BDT | Gross Profit: ${money(sar*(rate-cost))} BDT`}
+['saleSar','saleRate','costRate'].forEach(id=>$(id).addEventListener('input',preview));
+$('ledgerParty').onchange=renderLedger;
+function renderLedger(){const id=$('ledgerParty').value,p=parties.find(x=>x.id===id);if(!p){ledgerData=[];$('ledgerRows').innerHTML='';['ledgerSales','ledgerPaid','ledgerDue'].forEach(x=>$(x).textContent='0');return}const s=sales.filter(x=>x.party_id===id),r=payments.filter(x=>x.party_id===id);$('ledgerSales').textContent=money(s.reduce((a,x)=>a+Number(x.total_bdt),0));$('ledgerPaid').textContent=money(r.reduce((a,x)=>a+Number(x.amount_bdt),0));$('ledgerDue').textContent=money(due(p));const items=[...s.map(x=>({date:x.sale_date,created:x.created_at,details:`Sale ${money(x.sar_amount)} SAR @ ${x.selling_rate}`,debit:Number(x.total_bdt),credit:0})),...r.map(x=>({date:x.payment_date,created:x.created_at,details:`Payment received ${x.reference||''}`,debit:0,credit:Number(x.amount_bdt)}))].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));let balance=Number(p.opening_due_bdt||0);ledgerData=[{date:'',details:'Opening Due',debit:balance,credit:0,balance}];for(const item of items){balance+=item.debit-item.credit;ledgerData.push({...item,balance})}$('ledgerRows').innerHTML=ledgerData.map(x=>`<tr><td>${safe(x.date)}</td><td>${safe(x.details)}</td><td>${money(x.debit)}</td><td>${money(x.credit)}</td><td>${money(x.balance)}</td></tr>`).join('')}
+function downloadCSV(rows,name){const csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+$('csv').onclick=()=>{const p=parties.find(x=>x.id===$('ledgerParty').value);if(!p)return notice('Select a party first',true);downloadCSV([['Party',p.name],['Date','Details','Debit BDT','Credit BDT','Balance BDT'],...ledgerData.map(x=>[x.date,x.details,x.debit,x.credit,x.balance])],`party-ledger-${p.name.replace(/[^a-z0-9-]/gi,'_')}.csv`)};
+$('print').onclick=()=>{if(!$('ledgerParty').value)return notice('Select a party first',true);window.print()};$('refresh').onclick=loadAll;
+// Customer-only reads are restricted by Supabase RLS, not just this interface.
 async function loadCustomerLedger(partyId){
-if(!partyId)throw Error("No party linked. Contact Admin.");
-const [p,s,r]=await Promise.all([
-db.from("parties").select("id,name,opening_due_bdt").eq("id",partyId).single(),
-db.from("party_sales").select("sale_date,created_at,sar_amount,selling_rate,total_bdt").eq("party_id",partyId),
-db.from("party_payments").select("payment_date,created_at,amount_bdt,reference").eq("party_id",partyId)
-]);
-customerParty=check(p);
-const ss=check(s),rr=check(r);
-const opening=Number(customerParty.opening_due_bdt||0);
-const sold=ss.reduce((a,x)=>a+Number(x.total_bdt||0),0);
-const paid=rr.reduce((a,x)=>a+Number(x.amount_bdt||0),0);
-$("customerPartyName").textContent=customerParty.name;
-$("cOpening").textContent=money(opening);
-$("cSales").textContent=money(sold);
-$("cPaid").textContent=money(paid);
-$("cDue").textContent=money(opening+sold-paid);
-customerLedgerData=buildLedger(customerParty,ss,rr);
-$("customerLedgerRows").innerHTML=ledgerHTML(customerLedgerData);
+  if(!partyId)throw Error('No party linked to this customer. Contact Admin.');
+  const [p,s,r]=await Promise.all([
+    db.from('parties').select('id,name,opening_due_bdt').eq('id',partyId).single(),
+    db.from('party_sales').select('sale_date,created_at,sar_amount,selling_rate,total_bdt,notes').eq('party_id',partyId).order('sale_date'),
+    db.from('party_payments').select('payment_date,created_at,amount_bdt,reference,notes').eq('party_id',partyId).order('payment_date')
+  ]);
+  customerParty=check(p);const ss=check(s),rr=check(r);
+  const sold=ss.reduce((a,x)=>a+Number(x.total_bdt||0),0),paid=rr.reduce((a,x)=>a+Number(x.amount_bdt||0),0),opening=Number(customerParty.opening_due_bdt||0);
+  $('customerPartyName').textContent=customerParty.name;
+  $('cOpening').textContent=money(opening);$('cSales').textContent=money(sold);$('cPaid').textContent=money(paid);$('cDue').textContent=money(opening+sold-paid);
+  const entries=[...ss.map(x=>({date:x.sale_date,created:x.created_at||'',details:`Sale ${money(x.sar_amount)} SAR @ ${x.selling_rate}`,debit:Number(x.total_bdt||0),credit:0})),...rr.map(x=>({date:x.payment_date,created:x.created_at||'',details:`Payment received ${x.reference||''}`,debit:0,credit:Number(x.amount_bdt||0)}))].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
+  let balance=opening;customerLedgerData=[{date:'',details:'Opening Due',debit:opening,credit:0,balance}];for(const x of entries){balance+=x.debit-x.credit;customerLedgerData.push({...x,balance})}
+  $('customerLedgerRows').innerHTML=customerLedgerData.map(x=>`<tr><td>${safe(x.date)}</td><td>${safe(x.details)}</td><td>${money(x.debit)}</td><td>${money(x.credit)}</td><td>${money(x.balance)}</td></tr>`).join('');
 }
+$('customerForm').onsubmit=async e=>{e.preventDefault();if(role!=='admin')return notice('Admin only',true);const b=e.target.querySelector('button[type=submit]');b.disabled=true;try{
+ const {data:{session}}=await db.auth.getSession();if(!session)throw Error('Please log in again');if(!$('customerParty').value)throw Error('Select a party');
+ const response=await fetch(SUPABASE_URL+'/functions/v1/create-customer-',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({name:$('customerName').value.trim(),email:$('customerEmail').value.trim(),password:$('customerPassword').value,party_id:$('customerParty').value})});
+ const result=await response.json().catch(()=>({}));if(!response.ok||!result.success)throw Error((result.error||result.message||'Function request failed ('+response.status+')')+(response.status===403?' — Check admin role in profiles and Edge Function authorization.':''));
+ $('customerResult').textContent='Customer created successfully: '+$('customerEmail').value;e.target.reset();notice('Customer account created');
+ }catch(err){$('customerResult').textContent=err.message;notice('Customer creation error: '+err.message,true)}finally{b.disabled=false}};
+$('customerCsv').onclick=()=>{if(!customerParty)return;downloadCSV([['Party',customerParty.name],['Date','Details','Debit BDT','Credit BDT','Balance BDT'],...customerLedgerData.map(x=>[x.date,x.details,x.debit,x.credit,x.balance])],`my-ledger-${customerParty.name.replace(/[^a-z0-9-]/gi,'_')}.csv`)};
+$('customerPrint').onclick=()=>{if(customerParty)window.print()};
+$('customerRefresh').onclick=async()=>{try{const profile=check(await db.from('profiles').select('party_id').eq('id',me.id).single());await loadCustomerLedger(profile.party_id);notice('Ledger updated')}catch(err){notice(err.message,true)}};
 
-$("customerForm").onsubmit=async e=>{
-e.preventDefault();
-if(role!=="admin")return notice("Admin only",true);
-const button=e.target.querySelector("button[type=submit]");
-button.disabled=true;
-try{
-const {data:{session}}=await db.auth.getSession();
-if(!session)throw Error("Login required");
-const response=await fetch(SUPABASE_URL+"/functions/v1/"+FUNCTION_NAME,{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-"Authorization":"Bearer "+session.access_token,
-"apikey":SUPABASE_PUBLISHABLE_KEY
-},
-body:JSON.stringify({
-name:val("customerName"),
-email:val("customerEmail"),
-password:$("customerPassword").value,
-party_id:val("customerParty")
-})
-});
-const result=await response.json().catch(()=>({}));
-if(!response.ok||!result.success)throw Error(result.error||"Function failed: "+response.status);
-$("customerResult").textContent="Customer created: "+val("customerEmail");
-e.target.reset();
-notice("Customer created successfully");
-}catch(err){
-$("customerResult").textContent=err.message;
-notice("Customer creation error: "+err.message,true);
-}finally{button.disabled=false}
-};
-
-$("customerCsv").onclick=()=>{
-if(!customerParty)return;
-exportLedger(customerLedgerData,"my-ledger",customerParty.name);
-};
-$("customerPrint").onclick=()=>window.print();
-$("customerRefresh").onclick=async()=>{
-try{
-const p=check(await db.from("profiles").select("party_id").eq("id",me.id).single());
-await loadCustomerLedger(p.party_id);
-notice("Ledger updated");
-}catch(err){notice(err.message,true)}
-};
-
-$("saleDate").value=today();
-$("paymentDate").value=today();
-$("today").textContent=today();
-
-try{
-if(!window.supabase)throw Error("Supabase library not loaded");
-db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
-loginView().catch(err=>notice("Connection error: "+err.message,true));
-}catch(err){
-notice("Setup error: "+err.message,true);
-}
+$('saleDate').value=today();$('paymentDate').value=today();$('today').textContent=today();
+try{if(!window.supabase)throw Error('Supabase library did not load. Check internet.');db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);loginView().catch(err=>notice('Connection error: '+err.message,true))}catch(err){notice('Setup error: '+err.message,true)}
 </script>
-</body>
-</html>
+</body></html>
