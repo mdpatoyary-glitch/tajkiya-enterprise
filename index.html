@@ -759,8 +759,8 @@ async function loadUsers() {
         <td class="te-id">${esc(profile.party_id || "-")}</td></tr>`;
     }).join("") || '<tr><td colspan="4">No visible profiles (check RLS)</td></tr>';
   } catch (err) {
-    tbody.innerHTML = <tr><td colspan="4">${esc(err.message)}</td></tr>;
-  }
+ tbody.innerHTML = '<tr><td colspan="4">' + esc(err.message) + '</td></tr>';
+}
 }
 $("refreshUsers").onclick=loadUsers;
 [customerNav,userNav].forEach(btn=>btn.onclick=async()=>{showPage(btn.dataset.page);if(btn.dataset.page==="users")await loadUsers();});
