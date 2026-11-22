@@ -729,14 +729,38 @@ const baseEditRecord=editRecord;
 editRecord=function(type,id){baseEditRecord(type,id);if(type==="party"){const p=partyList.find(x=>String(x.id)===String(id));if(p)$("accountType").value=p.party_type||"party";}};
 const baseResetForm=resetForm;
 resetForm=function(type){baseResetForm(type);if(type==="party"){$("accountType").value="party";$("accountCurrency").disabled=false;$("accountCurrency").value="BDT";$("openingBalance").value="0";updateCurrencyForm();}};
-async function loadUsers(){
- const tbody=$("userAccountRows");
- if(!admin()){tbody.innerHTML='<tr><td colspan="4">Admin only</td></tr>';return;}
- tbody.innerHTML='<tr><td colspan="4">Loading...</td></tr>';
- try{
-  const data=check(await db.from("profiles").select("id,name,role,party_id").order("name"));
-  tbody.innerHTML=(data||[]).map(p=>`<tr><td>${esc(p.name)}</td><td><span class="te-tag">${esc(p.role)}</span></td><td class="te-id">${esc(p.id)}</td><td class="te-id">${esc(p.party_id||"-")}</td></tr>`).join("")||'<tr><td colspan="4">No visible profiles (check RLS)</td></tr>';
- }catch(err){tbody.innerHTML=`<tr><td colspan="4">${esc(err.message)}</td></tr>`;}
+async function loadUsers() {
+  const tbody = $("userAccountRows");
+  if (!admin()) {
+    tbody.innerHTML = '<tr><td colspan="4">Admin only</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+
+  try {
+    let result = await db.from("profiles")
+      .select("id,role,party_id,email").order("role").order("id");
+
+    if (result.error?.code === "42703") {
+      result = await db.from("profiles")
+        .select("id,role,party_id").order("role").order("id");
+    }
+
+    const profiles = check(result) || [];
+    tbody.innerHTML = profiles.map(profile => {
+      const account = partyList.find(p => String(p.id) === String(profile.party_id));
+      const ownEmail = profile.id === user?.id ? user.email : "";
+      const label = account?.name || profile.email || ownEmail || "-";
+
+      return `<tr><td>${esc(label)}</td>
+        <td><span class="te-tag">${esc(profile.role)}</span></td>
+        <td class="te-id">${esc(profile.id)}</td>
+        <td class="te-id">${esc(profile.party_id || "-")}</td></tr>`;
+    }).join("") || '<tr><td colspan="4">No visible profiles (check RLS)</td></tr>';
+  } catch (err) {
+    tbody.innerHTML = <tr><td colspan="4">${esc(err.message)}</td></tr>;
+  }
 }
 $("refreshUsers").onclick=loadUsers;
 [customerNav,userNav].forEach(btn=>btn.onclick=async()=>{showPage(btn.dataset.page);if(btn.dataset.page==="users")await loadUsers();});
