@@ -113,6 +113,17 @@ tbody tr:hover{background:#f7fbfe}
 .cash-book-total dt{font-size:11px;color:#445c73}
 .cash-book-total dd{margin:2px 0 0;font-size:clamp(13px,2.8vw,21px);font-variant-numeric:tabular-nums;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:600px){#cashSearch{max-width:none}#cashPeriods button{padding:6px 8px}.cash-book-table th,.cash-book-table td{padding:8px 5px;font-size:12px}}
+#cashReportDialog{width:min(420px,calc(100% - 26px));border:1px solid #d6e2ec;border-radius:16px;padding:16px;color:#18314d;box-shadow:0 18px 70px #102b4e45}
+#cashReportDialog::backdrop{background:#14283b75}
+.cash-report-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.cash-report-heading h3{margin:0;font-size:19px}
+.cash-report-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.cash-report-range input{min-width:0;padding:8px}
+.cash-report-options{display:grid;gap:8px}
+.cash-report-options button{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;margin:0;min-height:49px;background:#f0f5f8;color:#17314d}
+.cash-report-options small{font-size:12px;color:#536d83}
+#cashReportStatus{margin:8px 0 0}
+#cashReportStatus:empty{display:none}
 @media print{.cash-book-footer{position:static}}
 </style>
 </head>
@@ -258,7 +269,20 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="cash" class="card page hidden">
-<div class="cash-book-title"><div><h2>Cash Book</h2><span class="muted">SAR</span></div><button type="button" class="secondary no-print" id="cashExport">Export CSV</button></div>
+<div class="cash-book-title"><div><h2>Cash Book</h2><span class="muted">SAR</span></div><button type="button" class="secondary no-print" id="cashReportButton" aria-haspopup="dialog">Report</button></div>
+<dialog id="cashReportDialog" class="no-print" aria-labelledby="cashReportTitle">
+ <div class="cash-report-heading"><h3 id="cashReportTitle">Cash Book Report</h3>
+ <form method="dialog"><button type="submit" class="secondary" aria-label="Close report options">Close</button></form></div>
+ <div class="cash-report-range">
+  <div><label for="cashReportFrom">From date</label><input type="date" id="cashReportFrom"></div>
+  <div><label for="cashReportTo">To date</label><input type="date" id="cashReportTo"></div>
+ </div>
+ <div class="cash-report-options">
+  <button type="button" id="cashReportPdf"><strong>PDF</strong><small>Print / Save as PDF</small></button>
+  <button type="button" id="cashReportExcel"><strong>Excel</strong><small>Download .xlsx</small></button>
+ </div>
+ <p id="cashReportStatus" role="status" class="muted"></p>
+</dialog>
 <div class="cash-book-tools no-print">
 <div id="cashPeriods" role="group" aria-label="Cash Book period">
 <button type="button" data-period="all" aria-pressed="true">All</button>
@@ -554,10 +578,150 @@ $("cashSearch").addEventListener("input",renderCash);
 $("cashAddIn").onclick=()=>openCashForm("in");
 $("cashAddOut").onclick=()=>openCashForm("out");
 $("cashCancel").onclick=()=>resetForm("cash");
-$("cashExport").onclick=()=>{
- const {rows}=loadCashBookView();
- csv([["Date","Person","Type","SAR","Notes"],...rows.map(row=>[row.entry_date,row.person_name,row.entry_type,row.amount_sar,row.notes])],"cash-book.csv");
+function cashReportDate(value){
+ const [year,month,day]=value.split("-");
+ const date=new Date(value+"T12:00:00Z");
+ if(!Number.isFinite(date.getTime()))return value;
+ const name=new Intl.DateTimeFormat("en",{month:"short",timeZone:"UTC"}).format(date);
+ return day+"-"+name+"-"+year;
+}
+
+function cashReportData(){
+ const from=$("cashReportFrom").value;
+ const to=$("cashReportTo").value;
+ if(from&&to&&from>to)throw Error("From date must be on or before To date.");
+ const search=$("cashSearch").value.trim();
+ const query=search.toLocaleLowerCase();
+ const relevant=cashList.filter(row=>[row.person_name,row.notes,row.entry_date]
+  .some(value=>String(value??"").toLocaleLowerCase().includes(query)));
+ const period=from&&to
+  ?cashReportDate(from)+(to===from?"":" to "+cashReportDate(to))
+  :from?"From "+cashReportDate(from):to?"Through "+cashReportDate(to):"All dates";
+ const entries=[];
+ let previousCents=0,incomingCents=0,outgoingCents=0;
+ for(const row of relevant){
+  const cents=Math.round(n(row.amount_sar)*100);
+  const cashIn=row.entry_type==="in"?cents:0;
+  const cashOut=row.entry_type==="out"?cents:0;
+  if(from&&row.entry_date<from){previousCents+=cashIn-cashOut;continue;}
+  if(to&&row.entry_date>to)continue;
+  incomingCents+=cashIn;
+  outgoingCents+=cashOut;
+  entries.push([
+   cashReportDate(row.entry_date),
+   [row.person_name,row.notes].filter(Boolean).join(" · "),
+   cashIn/100,cashOut/100
+  ]);
+ }
+ const netCents=incomingCents-outgoingCents;
+ return {
+  period,search,entries,
+  summary:[
+   ["Total Cash In",incomingCents/100],
+   ["Total Cash Out",outgoingCents/100],
+   ["Period Balance",netCents/100],
+   ["Previous Balance",previousCents/100],
+   ["Closing Balance",(previousCents+netCents)/100]
+  ]
+ };
+}
+
+function printCashReport(report){
+ const preview=window.open("","_blank");
+ if(!preview)throw Error("Allow pop-ups for this site to open the PDF report.");
+ const rows=report.entries.map(([date,notes,incoming,outgoing])=>`<tr>
+  <td>${esc(date)}</td><td>${esc(notes)}</td>
+  <td class="number credit">${fmt(incoming)}</td>
+  <td class="number debit">${fmt(outgoing)}</td>
+ </tr>`).join("")||'<tr><td colspan="4">No matching cash entries.</td></tr>';
+ const summary=report.summary.map(([label,value])=>
+  `<tr><th scope="row">${esc(label)}</th><td class="number">${fmt(value)}</td></tr>`).join("");
+ preview.document.open();
+ preview.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1"><title>Tajkiya Enterprise · Cash Book</title>
+ <style>
+ @page{size:A4;margin:13mm}body{font:13px system-ui,sans-serif;color:#17314d;max-width:900px;margin:22px auto;padding:0 12px}
+ h1{font-size:23px;margin:0}h2{font-size:17px;margin:5px 0}
+ .report-header{display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:8px;margin:12px 0}
+ .report-header p{margin:0;text-align:right}.search{font-size:12px}
+ table{width:100%;border-collapse:collapse;table-layout:fixed}
+ th,td{border:1px solid #bbc9d3;padding:6px 8px;text-align:left;overflow-wrap:anywhere}
+ thead th{background:#edf3f7}
+ .date{width:24%}.notes{width:40%}.amount{width:18%}
+ .number{text-align:right;font-variant-numeric:tabular-nums}
+ .credit{background:#e7f5f0;color:#186749}.debit{background:#fbeef0;color:#a73748}
+ thead{display:table-header-group}tr{break-inside:avoid}
+ .summary{width:min(100%,390px);margin:14px 0 0 auto;break-inside:avoid}
+ .summary th{width:59%;font-weight:500}.summary tr:last-child{background:#e6eef6;font-weight:700}
+ .summary tr:last-child th{font-weight:700}
+ button{font:inherit;padding:8px 12px}
+ @media print{button{display:none}body{margin:0;padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+ </style></head><body>
+ <button type="button" onclick="window.print()">Print / Save as PDF</button>
+ <div class="report-header"><div><h1>Tajkiya Enterprise</h1><h2>Cash Book Report · SAR</h2></div><p>${esc(report.period)}</p></div>
+ ${report.search?`<p class="search">Search: ${esc(report.search)}</p>`:""}
+ <table><thead><tr><th class="date">Date</th><th class="notes">Notes</th><th class="amount credit number">Cash In</th><th class="amount debit number">Cash Out</th></tr></thead>
+ <tbody>${rows}</tbody></table>
+ <table class="summary" aria-label="Cash Book totals"><tbody>${summary}</tbody></table>
+ </body></html>`);
+ preview.document.close();
+ preview.focus();
+}
+
+function cashReportWorkbook(xlsx,report){
+ const sheet=xlsx.utils.aoa_to_sheet([
+  ["Tajkiya Enterprise"],["Cash Book Report","SAR"],["Period",report.period],
+  ...(report.search?[["Search",report.search]]:[]),[],
+  ["Date","Notes","Cash In (SAR)","Cash Out (SAR)"],
+  ...report.entries,[],
+  ...report.summary
+ ]);
+ sheet["!cols"]=[{wch:23},{wch:44},{wch:18},{wch:18}];
+ const workbook=xlsx.utils.book_new();
+ xlsx.utils.book_append_sheet(workbook,sheet,"Cash Book");
+ return workbook;
+}
+
+let cashExcelLoading;
+function cashExcelLibrary(){
+ if(window.XLSX)return Promise.resolve(window.XLSX);
+ if(!cashExcelLoading){
+  cashExcelLoading=new Promise((resolve,reject)=>{
+   const script=document.createElement("script");
+   script.src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+   script.onload=()=>window.XLSX?resolve(window.XLSX):reject(Error("Excel export could not load."));
+   script.onerror=()=>{script.remove();reject(Error("Excel export could not load. Check your internet and try again."));};
+   document.head.appendChild(script);
+  }).catch(error=>{cashExcelLoading=null;throw error;});
+ }
+ return cashExcelLoading;
+}
+
+$("cashReportButton").onclick=()=>{
+ const [from,to]=cashPeriodDates(cashPeriod);
+ $("cashReportFrom").value=from;
+ $("cashReportTo").value=to;
+ $("cashReportDialog").showModal();
 };
+$("cashReportPdf").onclick=()=>{
+ try{
+  printCashReport(cashReportData());
+  $("cashReportDialog").close();
+ }catch(error){$("cashReportStatus").textContent=error.message;}
+};
+$("cashReportExcel").onclick=async()=>{
+ const button=$("cashReportExcel"),status=$("cashReportStatus");
+ if(button.disabled)return;
+ button.disabled=true;
+ status.textContent="Preparing Excel report…";
+ try{
+  const report=cashReportData();
+  const xlsx=await cashExcelLibrary();
+  xlsx.writeFile(cashReportWorkbook(xlsx,report),"Tajkiya-Cash-Book-"+today()+".xlsx",{compression:true});
+  $("cashReportDialog").close();
+ }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+};
+$("cashReportDialog").addEventListener("close",()=>{$("cashReportStatus").textContent="";});
 
 function buildLedger(p,ss,rr){
 const entries=[
