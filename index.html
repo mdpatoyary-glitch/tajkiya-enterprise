@@ -687,7 +687,8 @@ function renderPurchaseRows(){
  $("purchaseRows").innerHTML=rows.map(purchase=>`<tr>
   ${purchaseMemoCells(purchase).map(value=>`<td>${esc(value)}</td>`).join("")}
   <td class="no-print"><button type="button" class="secondary" data-purchase-memo="${esc(purchase.id)}">Memo</button>
-  ${admin()?`<button type="button" data-purchase-edit="${esc(purchase.id)}">Edit Payment</button>`:""}</td></tr>`
+  ${admin()?`<button type="button" data-purchase-edit="${esc(purchase.id)}">Edit Payment</button>
+  <button type="button" class="danger" data-purchase-delete="${esc(purchase.id)}">Delete</button>`:""}</td></tr>`
  ).join("")||'<tr><td colspan="9">No matching purchases.</td></tr>';
  $("printPurchaseMemo").disabled=!rows.length;
 }
@@ -759,13 +760,48 @@ $("purchaseMemoCustomer").addEventListener("change",renderPurchaseRows);
 $("purchaseMemoDate").addEventListener("input",renderPurchaseRows);
 $("printPurchaseMemo").onclick=()=>printPurchaseMemo(filteredPurchases());
 $("purchaseRows").onclick=event=>{
- const button=event.target.closest("[data-purchase-memo],[data-purchase-edit]");
+ const button=event.target.closest("[data-purchase-memo],[data-purchase-edit],[data-purchase-delete]");
  if(!button)return;
- const row=purchaseList.find(purchase=>purchase.id===(button.dataset.purchaseMemo||button.dataset.purchaseEdit));
+ const {purchaseMemo,purchaseEdit,purchaseDelete}=button.dataset;
+ const row=purchaseList.find(purchase=>purchase.id===(purchaseMemo||purchaseEdit||purchaseDelete));
  if(!row)return;
- if(button.dataset.purchaseEdit&&admin())editPurchasePayment(row);
- else if(button.dataset.purchaseMemo)printPurchaseMemo([row]);
+ if(purchaseDelete)deletePurchase(row);
+ else if(purchaseEdit&&admin())editPurchasePayment(row);
+ else if(purchaseMemo)printPurchaseMemo([row]);
 };
+
+async function deletePurchase(purchase){
+ if(!admin()||savingPurchase)return;
+ const detail=partyName(purchase.party_id)+" · "+purchase.purchase_date+" · "+fmt(purchase.amount_sar)+" SAR";
+ if(!confirm("Permanently delete this Riyal Buy entry?\n\n"+detail+
+  "\n\nIts entries in Cash Book and Customer Ledger will also be removed."))return;
+ savingPurchase=true;
+ const fields=$("purchaseFields");
+ const wasDisabled=fields.disabled;
+ fields.disabled=true;
+ purchaseStatus.textContent="Deleting purchase…";
+ try{
+  const removed=check(await db.from("riyal_purchases").delete().eq("id",purchase.id).select("id").maybeSingle());
+  if(!removed)throw Error("Purchase is unavailable or deletion is blocked. Refresh the list and check admin access.");
+  if(editingPurchase?.id===purchase.id)finishPurchaseEdit();
+  purchaseList=purchaseList.filter(row=>row.id!==purchase.id);
+  cashList=cashList.filter(row=>!row.linkedPurchase||row.id!==purchase.id);
+  renderPurchaseRows();
+  renderAll();
+  const refreshed=await loadAll();
+  if(activeCustomerSheet?.account.id===purchase.party_id){
+   try{await refreshCustomerSheet(activeCustomerSheet);}
+   catch(error){$("customerSheetStatus").textContent="Reopen the account to refresh its purchases.";}
+  }
+  purchaseStatus.textContent=refreshed?"Purchase deleted from Riyal Buy, Cash Book and Customer Ledger.":
+   "Purchase deleted. Use Refresh Data to reload all balances.";
+ }catch(error){
+  purchaseStatus.textContent="Could not confirm deletion. "+error.message;
+ }finally{
+  savingPurchase=false;
+  fields.disabled=wasDisabled;
+ }
+}
 
 function updatePurchaseBankFields(){
  const isBank=$("purchaseMethod").value==="Bank";
