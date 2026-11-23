@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -160,11 +160,14 @@ tbody tr:hover{background:#f7fbfe}
 <div id="staff" class="hidden">
 <nav id="nav">
 <button data-page="dashboard" class="active">Dashboard</button>
-<button data-page="parties">Parties</button>
 <button data-page="sales">Riyal Sales</button>
-<button data-page="payments">Payments</button>
-<button data-page="ledger">Party Ledger</button>
+<button data-page="purchases">Riyal Buy</button>
+<button data-page="customers">Customers</button>
 <button data-page="cash">Cash Book</button>
+<button data-page="ledger">Customer / Party Ledger</button>
+<button data-page="sarTransactions">SAR Ledger Entries</button>
+<button data-page="parties">Parties</button>
+<button data-page="payments">Payments</button>
 </nav>
 
 <section id="dashboard" class="card page">
@@ -177,7 +180,7 @@ tbody tr:hover{background:#f7fbfe}
 <div class="stat"><small>Gross Profit BDT</small><strong id="totalProfit">0</strong></div>
 <div class="stat"><small>Registered Parties</small><strong id="partyCount">0</strong></div>
 </div>
-<p class="muted">Gross Profit = (Selling Rate - Cost Rate) × SAR. অন্যান্য খরচ বাদ দেওয়া হয়নি।</p>
+<p class="muted">Gross Profit = (Selling Rate - Cost Rate) × SAR. Other expenses are not deducted.</p>
 <button onclick="loadAll()">Refresh Data</button>
 </section>
 
@@ -204,7 +207,12 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="sales" class="card page hidden">
-<h2>Riyal Sales Entry</h2>
+<h2>Riyal Sales</h2>
+<div class="actions no-print">
+<button type="button" disabled>BDT Account</button>
+<button type="button" class="secondary" id="sarSalesShortcut">SAR Account</button>
+</div>
+<h3>BDT Sales Entry</h3>
 <form id="saleForm">
 <div class="grid">
 <div><label>Party</label><select name="party_id" class="partySelect" required></select></div>
@@ -222,6 +230,31 @@ tbody tr:hover{background:#f7fbfe}
 <table>
 <thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Profit</th><th>Action</th></tr></thead>
 <tbody id="saleRows"></tbody>
+</table>
+</div>
+</section>
+
+<section id="purchases" class="card page hidden">
+<h2>Riyal Buy</h2>
+<p class="muted">Record a completed purchase after receiving SAR and paying the customer in BDT. The purchase appears in the customer ledger and as Cash In in the Cash Book.</p>
+<form id="purchaseForm">
+<fieldset id="purchaseFields" disabled>
+<div class="grid">
+<div><label for="purchaseCustomer">Customer</label><select id="purchaseCustomer" name="party_id" required></select></div>
+<div><label for="purchaseDate">Date</label><input id="purchaseDate" name="purchase_date" type="date" required></div>
+<div><label for="purchaseSar">SAR Received</label><input id="purchaseSar" name="amount_sar" type="number" min="0.01" max="999999999999.99" step="0.01" required></div>
+<div><label for="purchaseRate">Buy Rate (BDT/SAR)</label><input id="purchaseRate" name="rate_bdt" type="number" min="0.0001" max="99999999.9999" step="0.0001" required></div>
+<div><label for="purchaseNotes">Notes</label><input id="purchaseNotes" name="notes" maxlength="250"></div>
+</div>
+<p id="purchasePreview" aria-live="polite"></p>
+<button type="submit">Save Purchase</button>
+</fieldset>
+</form>
+<p id="purchaseStatus" role="status"></p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Date</th><th>Customer</th><th>SAR Received</th><th>Buy Rate</th><th>BDT Paid</th><th>Notes</th></tr></thead>
+<tbody id="purchaseRows"></tbody>
 </table>
 </div>
 </section>
@@ -248,8 +281,8 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="ledger" class="card page hidden">
-<h2>Party Ledger</h2>
-<label>Select Party</label>
+<h2>Customer / Party Ledger</h2>
+<label for="ledgerParty">Select Customer or Party</label>
 <select id="ledgerParty" class="partySelect"></select>
 <div class="stats" style="margin-top:12px">
 <div class="stat"><small>Total Sales</small><strong id="ledgerSales">0</strong></div>
@@ -359,6 +392,7 @@ const fmt=v=>n(v).toLocaleString("en-US",{maximumFractionDigits:2});
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let user=null,role="",partyList=[],saleList=[],paymentList=[],cashList=[];
+let purchaseList=[];
 let editIds={party:null,sale:null,payment:null,cash:null};
 let ledgerData=[];
 let sarSales=[],sarPayments=[];
@@ -462,21 +496,67 @@ async function loadCashEntries(){
  }
 }
 
+async function readPurchases(accountId){
+ const rows=[];
+ const limit=500;
+ for(let offset=0;;offset+=limit){
+  let query=db.from("riyal_purchases").select("id,party_id,purchase_date,amount_sar,rate_bdt,total_bdt,notes,created_at");
+  if(accountId)query=query.eq("party_id",accountId);
+  const {data,error}=await query.order("purchase_date",{ascending:false})
+   .order("id",{ascending:false}).range(offset,offset+limit-1);
+  if(error?.code==="42P01"||error?.code==="PGRST205")return null;
+  if(error)throw error;
+  rows.push(...data);
+  if(data.length<limit)return rows;
+ }
+}
+
+function purchaseDescription(purchase){
+ const trade="Riyal Buy · "+fmt(purchase.amount_sar)+" SAR received @ "
+  +fmtBuyRate(purchase.rate_bdt)+" BDT/SAR · "+fmt(purchase.total_bdt)+" BDT paid";
+ return trade+(purchase.notes?" · "+purchase.notes:"");
+}
+
+function purchaseLedgerRows(purchases){
+ return purchases.map(purchase=>({
+  date:purchase.purchase_date,created:purchase.created_at,
+  details:purchaseDescription(purchase),debit:0,credit:0
+ }));
+}
+
+function purchasesFor(accountId){
+ return purchaseList.filter(entry=>entry.party_id===accountId);
+}
+
+function purchaseCashEntries(){
+ return purchaseList.map(purchase=>({
+  id:purchase.id,entry_date:purchase.purchase_date,created_at:purchase.created_at,
+  entry_type:"in",amount_sar:purchase.amount_sar,person_name:partyName(purchase.party_id),
+  notes:purchaseDescription(purchase),linkedPurchase:true
+ }));
+}
+
 async function loadAll(){
 try{
-const [p,s,r,c,ss,sp]=await Promise.all([
+const [p,s,r,c,ss,sp,purchases]=await Promise.all([
 db.from("parties").select("*").order("name"),
 db.from("party_sales").select("*").order("sale_date",{ascending:false}),
 db.from("party_payments").select("*").order("payment_date",{ascending:false}),
 loadCashEntries(),
 db.from("party_sar_sales").select("*").order("sale_date",{ascending:false}),
-db.from("party_sar_payments").select("*").order("payment_date",{ascending:false})
+db.from("party_sar_payments").select("*").order("payment_date",{ascending:false}),
+readPurchases()
 ]);
 partyList=check(p);saleList=check(s);paymentList=check(r);
-cashList=c;sarSales=check(ss);sarPayments=check(sp);
+sarSales=check(ss);sarPayments=check(sp);
+purchaseList=purchases??[];
+cashList=[...c,...purchaseCashEntries()].sort((a,b)=>b.entry_date.localeCompare(a.entry_date)
+ ||String(b.created_at??"").localeCompare(String(a.created_at??"")));
 renderAll();
+renderPurchases(purchases!==null);
 msg("Data updated");
-}catch(err){msg("Load error: "+err.message,true)}
+return true;
+}catch(err){msg("Load error: "+err.message,true);return false;}
 }
 function renderAll(){
 const salesTotal=saleList.reduce((a,x)=>a+n(x.total_bdt),0);
@@ -501,6 +581,85 @@ $("paymentRows").innerHTML=paymentList.map(x=>`<tr><td>${esc(x.payment_date)}</t
 renderCash();
 renderLedger();
 }
+
+const purchaseForm=$("purchaseForm");
+const purchaseStatus=$("purchaseStatus");
+const buyRateFormat=new Intl.NumberFormat("en-US",{maximumFractionDigits:4});
+function fmtBuyRate(rate){return buyRateFormat.format(rate);}
+
+function renderPurchases(available){
+ const customerSelect=$("purchaseCustomer");
+ const selected=customerSelect.value;
+ const customers=partyList.filter(p=>p.party_type==="customer");
+ customerSelect.innerHTML='<option value="">Select Customer</option>'+customers.map(p=>
+  `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+ if(customers.some(p=>p.id===selected))customerSelect.value=selected;
+ $("purchaseFields").disabled=!available||savingPurchase;
+ purchaseStatus.textContent=available?(customers.length?"":"Add a customer from the Customers menu first."):
+  "Run riyal_buy.sql in Supabase to enable this form.";
+ $("purchaseRows").innerHTML=purchaseList.map(purchase=>
+  `<tr><td>${esc(purchase.purchase_date)}</td><td>${esc(partyName(purchase.party_id))}</td><td>${fmt(purchase.amount_sar)}</td><td>${fmtBuyRate(purchase.rate_bdt)}</td><td>${fmt(purchase.total_bdt)}</td><td>${esc(purchase.notes)}</td></tr>`
+ ).join("")||'<tr><td colspan="6">No purchases recorded.</td></tr>';
+}
+
+function previewPurchase(){
+ const amount=$("purchaseSar").valueAsNumber;
+ const rate=$("purchaseRate").valueAsNumber;
+ const sarHundredths=BigInt(amount.toFixed(2).replace(".",""));
+ const rateTenThousandths=BigInt(rate.toFixed(4).replace(".",""));
+ const cents=(sarHundredths*rateTenThousandths+5000n)/10000n;
+ if(cents===0n){
+  $("purchasePreview").textContent="The BDT amount must be at least 0.01.";
+  return;
+ }
+ const whole=(cents/100n).toLocaleString("en-US");
+ const fraction=String(cents%100n).padStart(2,"0");
+ $("purchasePreview").textContent="BDT Paid: "+whole+"."+fraction;
+}
+purchaseForm.addEventListener("input",()=>{
+ $("purchasePreview").textContent="";
+ if($("purchaseSar").validity.valid&&$("purchaseRate").validity.valid)previewPurchase();
+});
+let previousPurchase=null;
+let savingPurchase=false;
+purchaseForm.addEventListener("submit",async event=>{
+ event.preventDefault();
+ if(!staff()||savingPurchase||$("purchaseFields").disabled)return;
+ const entry=formData(purchaseForm);
+ if(!partyList.some(p=>p.id===entry.party_id&&p.party_type==="customer")){
+  purchaseStatus.textContent="Select a customer.";
+  return;
+ }
+ entry.notes=entry.notes.trim();
+ const key=JSON.stringify(entry);
+ const id=previousPurchase?.key===key?previousPurchase.id:crypto.randomUUID();
+ previousPurchase={key,id};
+ savingPurchase=true;
+ $("purchaseFields").disabled=true;
+ purchaseStatus.textContent="Saving purchase…";
+ try{
+  check(await db.from("riyal_purchases").upsert({id,...entry},{onConflict:"id",ignoreDuplicates:true}));
+ }catch(error){
+  purchaseStatus.textContent="Could not confirm the purchase. Retry the same entry. "+error.message;
+  $("purchaseFields").disabled=false;
+  savingPurchase=false;
+  return;
+ }
+ previousPurchase=null;
+ purchaseForm.elements.amount_sar.value="";
+ purchaseForm.elements.rate_bdt.value="";
+ purchaseForm.elements.notes.value="";
+ $("purchasePreview").textContent="";
+ const refreshed=await loadAll();
+ if(activeCustomerSheet?.account.id===entry.party_id){
+  try{await refreshCustomerSheet(activeCustomerSheet);}
+  catch(error){$("customerSheetStatus").textContent="Reopen the account to refresh its purchases.";}
+ }
+ savingPurchase=false;
+ $("purchaseFields").disabled=false;
+ purchaseStatus.textContent=refreshed?"Purchase saved to Customer Ledger and Cash Book.":
+  "Purchase saved. Use Refresh Data to reload the ledger and Cash Book.";
+});
 
 let cashPeriod="all";
 const cashDateFormat=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short",year:"numeric"});
@@ -549,7 +708,7 @@ function renderCash(){
   const dateText=Number.isFinite(entryDate.getTime())?cashDateFormat.format(entryDate):row.entry_date;
   const savedDate=new Date(row.created_at||"");
   const savedTime=Number.isFinite(savedDate.getTime())?cashTimeFormat.format(savedDate):"";
-  const actions=admin()?`<details><summary>Manage</summary>${buttons("cash",row.id)}</details>`:"";
+  const actions=admin()&&!row.linkedPurchase?`<details><summary>Manage</summary>${buttons("cash",row.id)}</details>`:"";
   return `<tr><td><time datetime="${esc(row.entry_date)}">${esc(dateText)}</time>${savedTime?`<small title="Recorded time">${esc(savedTime)}</small>`:""}</td><td><strong>${esc(row.person_name)}</strong><small>${esc(row.notes)}</small>${actions}</td><td class="cash-credit">${row.entry_type==="in"?fmt(row.amount_sar):""}</td><td class="cash-debit">${row.entry_type==="out"?fmt(row.amount_sar):""}</td></tr>`;
  }).join("")||'<tr><td colspan="4">No matching cash entries.</td></tr>';
 }
@@ -723,10 +882,11 @@ $("cashReportExcel").onclick=async()=>{
 };
 $("cashReportDialog").addEventListener("close",()=>{$("cashReportStatus").textContent="";});
 
-function buildLedger(p,ss,rr){
+function buildLedger(p,ss,rr,purchases){
 const entries=[
 ...ss.map(x=>({date:x.sale_date,created:x.created_at||"",details:"Sale "+fmt(x.sar_amount)+" SAR @ "+x.selling_rate,debit:n(x.total_bdt),credit:0})),
-...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"Payment "+(x.reference||""),debit:0,credit:n(x.amount_bdt)}))
+...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"Payment "+(x.reference||""),debit:0,credit:n(x.amount_bdt)})),
+...purchaseLedgerRows(purchases)
 ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
 let balance=n(p.opening_due_bdt);
 const rows=[{date:"",details:"Opening Due",debit:balance,credit:0,balance}];
@@ -746,7 +906,7 @@ if(currency(p)==="SAR"){
  $("ledgerSales").textContent=fmtSar(ss.reduce((a,x)=>a+sarEntryAmount(x),0))+" SAR";
  $("ledgerPaid").textContent=fmtSar(rr.reduce((a,x)=>a+n(x.amount_sar),0))+" SAR";
  $("ledgerDue").textContent=money(due(p),p);
- ledgerData=buildSarLedger(p,ss,rr);
+ ledgerData=buildSarLedger(p,ss,rr,purchasesFor(id));
  $("ledgerRows").innerHTML=ledgerHTML(ledgerData,fmtSar);
  return;
 }
@@ -755,19 +915,20 @@ const rr=paymentList.filter(x=>x.party_id===id);
 $("ledgerSales").textContent=fmt(ss.reduce((a,x)=>a+n(x.total_bdt),0));
 $("ledgerPaid").textContent=fmt(rr.reduce((a,x)=>a+n(x.amount_bdt),0));
 $("ledgerDue").textContent=fmt(due(p));
-ledgerData=buildLedger(p,ss,rr);
+ledgerData=buildLedger(p,ss,rr,purchasesFor(id));
 $("ledgerRows").innerHTML=ledgerHTML(ledgerData);
 }
 $("ledgerParty").onchange=renderLedger;
 
 async function loadCustomer(id){
 if(!id)throw Error("No party linked to customer");
-const [p,s,r,ssar,psar]=await Promise.all([
+const [p,s,r,ssar,psar,purchases]=await Promise.all([
  db.from("parties").select("*").eq("id",id).single(),
  db.from("party_sales").select("*").eq("party_id",id),
  db.from("party_payments").select("*").eq("party_id",id),
  db.from("party_sar_sales").select("*").eq("party_id",id),
- db.from("party_sar_payments").select("*").eq("party_id",id)
+ db.from("party_sar_payments").select("*").eq("party_id",id),
+ readPurchases(id)
 ]);
 const party=check(p),ss=check(s),rr=check(r);
 const sold=ss.reduce((a,x)=>a+n(x.total_bdt),0);
@@ -780,7 +941,7 @@ if(currency(party)==="SAR"){
  $("cSales").textContent=fmtSar(soldSar)+" SAR";
  $("cPaid").textContent=fmtSar(paidSar)+" SAR";
  $("cDue").textContent=fmtSar(opening(party)+soldSar-paidSar)+" SAR";
- $("customerRows").innerHTML=ledgerHTML(buildSarLedger(party,sales,payments),fmtSar);
+ $("customerRows").innerHTML=ledgerHTML(buildSarLedger(party,sales,payments,purchases??[]),fmtSar);
  return;
 }
 const paid=rr.reduce((a,x)=>a+n(x.amount_bdt),0);
@@ -789,7 +950,7 @@ $("cOpening").textContent=fmt(party.opening_due_bdt);
 $("cSales").textContent=fmt(sold);
 $("cPaid").textContent=fmt(paid);
 $("cDue").textContent=fmt(n(party.opening_due_bdt)+sold-paid);
-$("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr));
+$("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr,purchases??[]));
 }
 
 function salePreview(){
@@ -885,8 +1046,8 @@ const hasHistory=[saleList,paymentList,sarSales,sarPayments]
 $("accountCurrency").disabled=hasHistory;
 const note=$("currencyEditNote");
 note.textContent=hasHistory
- ?"এই অ্যাকাউন্টে বিক্রি বা পেমেন্ট আছে, তাই কারেন্সি পরিবর্তন করা যাবে না।"
- :"কারেন্সি বদলালে নতুন কারেন্সিতে Opening Balance দিন।";
+ ?"This account has sales or payments, so its currency cannot be changed."
+ :"If you change the currency, enter the opening balance in the new currency.";
 note.classList.remove("hidden");
 updateCurrencyForm();
 }
@@ -946,7 +1107,6 @@ document.head.appendChild(extraStyle);
 const accountTypeWrap=document.createElement("div");
 accountTypeWrap.innerHTML='<label for="accountType">Account Type</label><select name="party_type" id="accountType"><option value="party">Party</option><option value="customer">Customer</option></select>';
 $("partyForm").querySelector(".grid").prepend(accountTypeWrap);
-const customerNav=document.createElement("button");customerNav.dataset.page="customers";customerNav.textContent="Customers";$("nav").appendChild(customerNav);
 const userNav=document.createElement("button");userNav.dataset.page="users";userNav.textContent="Employee / Login IDs";$("nav").appendChild(userNav);
 const customerSection=document.createElement("section");customerSection.id="customers";customerSection.className="card page hidden";
 customerSection.innerHTML=`<h2>Customer Management</h2><p class="muted">Customer ID is the database account ID, not the login ID.</p><button type="button" id="addCustomer">+ Add Customer</button><div id="customerFormHost"></div><div class="tablewrap"><table><thead><tr><th>Name</th><th>Customer ID</th><th>Phone</th><th>Current Due</th><th>Action</th></tr></thead><tbody id="customerAccountRows"></tbody></table></div>`;
@@ -1021,31 +1181,31 @@ customerSheet.id = "customerSheet";
 customerSheet.className = "card hidden";
 customerSheet.innerHTML = `
  <h3 id="customerSheetName"></h3>
- <div class="grid"><div><label for="customerSheetDate">হিসাবের তারিখ</label><input id="customerSheetDate" type="date" required></div></div>
+ <div class="grid"><div><label for="customerSheetDate">Account Date</label><input id="customerSheetDate" type="date" required></div></div>
  <form id="customerSheetEntry">
   <fieldset id="customerSheetFields">
-   <legend>নতুন লেনদেন</legend>
+   <legend>New Transaction</legend>
    <div class="grid">
-    <div><label for="customerSheetType">লেনদেন</label><select id="customerSheetType" name="kind"></select></div>
-    <div><label for="customerSheetMethod">মাধ্যম</label><select id="customerSheetMethod" name="method" required><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Other">Other</option></select></div>
-    <div id="customerSheetBankField" class="hidden"><label for="customerSheetBank">ব্যাংকের নাম</label><select id="customerSheetBank" name="bank" required disabled>
-     <option value="">ব্যাংক বাছুন</option>
+    <div><label for="customerSheetType">Transaction Type</label><select id="customerSheetType" name="kind"></select></div>
+    <div><label for="customerSheetMethod">Payment Method</label><select id="customerSheetMethod" name="method" required><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Other">Other</option></select></div>
+    <div id="customerSheetBankField" class="hidden"><label for="customerSheetBank">Bank Name</label><select id="customerSheetBank" name="bank" required disabled>
+     <option value="">Select a Bank</option>
      ${bangladeshBanks.map(bank=>`<option value="${esc(bank)}">${esc(bank)}</option>`).join("")}
-     <option value="other">অন্য ব্যাংক</option>
+     <option value="other">Other Bank</option>
     </select></div>
-    <div id="customerSheetOtherBankField" class="hidden"><label for="customerSheetOtherBank">অন্য ব্যাংকের নাম</label><input id="customerSheetOtherBank" name="otherBank" maxlength="80" required disabled></div>
-    <div><label for="customerSheetContact" id="customerSheetContactLabel">প্রাপকের নাম</label><input id="customerSheetContact" name="contact" maxlength="120" required></div>
-    <div><label for="customerSheetAmount" id="customerSheetAmountLabel">পরিমাণ</label><input id="customerSheetAmount" name="amount" type="number" min=".01" step=".01" required></div>
-    <div id="customerSheetRateField"><label for="customerSheetRate">রেট (BDT/SAR)</label><input id="customerSheetRate" name="rate" type="number" min=".0001" step=".0001" required></div>
-    <div id="customerSheetCostField"><label for="customerSheetCost">ক্রয় রেট (BDT/SAR)</label><input id="customerSheetCost" name="cost" type="number" min="0" step=".0001" required></div>
+    <div id="customerSheetOtherBankField" class="hidden"><label for="customerSheetOtherBank">Other Bank Name</label><input id="customerSheetOtherBank" name="otherBank" maxlength="80" required disabled></div>
+    <div><label for="customerSheetContact" id="customerSheetContactLabel">Recipient Name</label><input id="customerSheetContact" name="contact" maxlength="120" required></div>
+    <div><label for="customerSheetAmount" id="customerSheetAmountLabel">Amount</label><input id="customerSheetAmount" name="amount" type="number" min=".01" step=".01" required></div>
+    <div id="customerSheetRateField"><label for="customerSheetRate">Rate (BDT/SAR)</label><input id="customerSheetRate" name="rate" type="number" min=".0001" step=".0001" required></div>
+    <div id="customerSheetCostField"><label for="customerSheetCost">Cost Rate (BDT/SAR)</label><input id="customerSheetCost" name="cost" type="number" min="0" step=".0001" required></div>
    </div>
    <p id="customerSheetPreview" class="muted" aria-live="polite"></p>
-   <button type="submit">এন্ট্রি সেভ করুন</button>
+   <button type="submit">Save Entry</button>
   </fieldset>
  </form>
  <p id="customerSheetStatus" role="status"></p>
  <div class="tablewrap"><table class="customer-sheet-table">
-  <thead><tr><th scope="col">মাধ্যম</th><th scope="col">নাম / ব্যাংক</th><th scope="col">BD</th><th scope="col">Rate</th><th scope="col">SR</th><th scope="col" id="customerSheetAdded">যোগ</th><th scope="col" id="customerSheetJoma">জমা</th><th scope="col" id="customerSheetBalance">Balance</th></tr></thead>
+  <thead><tr><th scope="col">Payment Method</th><th scope="col">Name / Bank</th><th scope="col">BD</th><th scope="col">Rate</th><th scope="col">SR</th><th scope="col" id="customerSheetAdded">Added</th><th scope="col" id="customerSheetJoma">Deposit</th><th scope="col" id="customerSheetBalance">Balance</th></tr></thead>
   <tbody id="customerSheetRows"></tbody>
   <tfoot id="customerSheetTotal"></tfoot>
  </table></div>`;
@@ -1091,7 +1251,7 @@ function customerSheetReference(text) {
  return parts ? {method:parts[1],contact:parts[2]} : {method:"",contact:text||""};
 }
 
-function customerSheetDay(account, sales, payments, date) {
+function customerSheetDay(account, sales, payments, purchases, date) {
  const isSar=currency(account)==="SAR";
  const transactions=[
   ...sales.map(entry=>({
@@ -1106,6 +1266,11 @@ function customerSheetDay(account, sales, payments, date) {
    date:entry.payment_date, created:entry.created_at||"",
    bdt:null,
    rate:null, sar:null, added:0, joma:n(isSar?entry.amount_sar:entry.amount_bdt)
+  })),
+  ...purchases.map(entry=>({
+   method:"Riyal Buy", contact:entry.notes||"Settled purchase",
+   date:entry.purchase_date, created:entry.created_at,
+   bdt:entry.total_bdt, rate:entry.rate_bdt, sar:entry.amount_sar, added:0, joma:0
   }))
  ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
 
@@ -1130,19 +1295,19 @@ function renderCustomerSheet(){
   $("customerSheetTotal").innerHTML="";
   return;
  }
- const [sales,payments]=sheet.entries;
+ const [sales,payments,purchases]=sheet.entries;
  const unit=currency(sheet.account);
- const {broughtForward,rows,totals,balance}=customerSheetDay(sheet.account,sales,payments,date);
+ const {broughtForward,rows,totals,balance}=customerSheetDay(sheet.account,sales,payments,purchases??[],date);
  const moneyText=unit==="SAR"?fmtSar:fmt;
  const cell=(value,format)=>value==null||value===0?"":format(value);
  $("customerSheetRows").innerHTML=
-  `<tr class="sheet-opening"><th scope="row" colspan="7">আগের ব্যালেন্স (BF)</th><td class="sheet-balance">${moneyText(broughtForward)}</td></tr>`+
+  `<tr class="sheet-opening"><th scope="row" colspan="7">Balance Brought Forward (BF)</th><td class="sheet-balance">${moneyText(broughtForward)}</td></tr>`+
   rows.map(row=>{
    const methodClass=row.method==="Cash"?"sheet-cash":row.method==="Bank"?"sheet-bank":"";
    return `<tr><td class="${methodClass}">${esc(row.method||"—")}</td><td>${esc(row.contact)}</td><td>${cell(row.bdt,fmt)}</td><td>${cell(row.rate,fmtSar)}</td><td>${cell(row.sar,fmtSar)}</td><td>${cell(row.added,moneyText)}</td><td class="sheet-joma">${cell(row.joma,moneyText)}</td><td class="sheet-balance">${moneyText(row.balance)}</td></tr>`;
-  }).join("")+(rows.length?"":'<tr><td colspan="8">এই তারিখে কোনো লেনদেন নেই।</td></tr>');
+  }).join("")+(rows.length?"":'<tr><td colspan="8">No transactions on this date.</td></tr>');
  $("customerSheetTotal").innerHTML=
-  `<tr><th scope="row" colspan="2">দিনের মোট</th><td>${fmt(totals.bdt)}</td><td></td><td>${fmtSar(totals.sar)}</td><td>${moneyText(totals.added)}</td><td>${moneyText(totals.joma)}</td><td>${moneyText(balance)} ${unit}</td></tr>`;
+  `<tr><th scope="row" colspan="2">Daily Total</th><td>${fmt(totals.bdt)}</td><td></td><td>${fmtSar(totals.sar)}</td><td>${moneyText(totals.added)}</td><td>${moneyText(totals.joma)}</td><td>${moneyText(balance)} ${unit}</td></tr>`;
 }
 
 function updateCustomerEntry(){
@@ -1151,8 +1316,8 @@ function updateCustomerEntry(){
  const sale=kind==="sale";
  const deposit=kind==="deposit";
  const fields=customerEntryForm.elements;
- $("customerSheetAmountLabel").textContent=sale||deposit?"পরিমাণ (SAR)":"পরিমাণ (BDT)";
- $("customerSheetContactLabel").textContent=conversion||sale?"প্রাপকের নাম":"জমাদাতার নাম";
+ $("customerSheetAmountLabel").textContent=sale||deposit?"Amount (SAR)":"Amount (BDT)";
+ $("customerSheetContactLabel").textContent=conversion||sale?"Recipient Name":"Depositor Name";
  const bankEntry=fields.method.value==="Bank";
  const otherBank=bankEntry&&fields.bank.value==="other";
  fields.bank.disabled=!bankEntry;
@@ -1165,7 +1330,7 @@ function updateCustomerEntry(){
  $("customerSheetCostField").classList.toggle("hidden",fields.cost.disabled);
  const amount=n(fields.amount.value),rate=n(fields.rate.value);
  $("customerSheetPreview").textContent=amount>0&&rate>0
-  ?conversion?fmtSar(bdtToSar(amount,rate))+" SAR যোগ হবে":sale?fmt(amount*rate)+" BDT যোগ হবে":""
+  ?conversion?fmtSar(bdtToSar(amount,rate))+" SAR will be added":sale?fmt(amount*rate)+" BDT will be added":""
   :"";
 }
 
@@ -1173,7 +1338,8 @@ async function refreshCustomerSheet(sheet){
  const [salesTable,paymentsTable]=customerSheetTables(sheet.account);
  const entries=await Promise.all([
   readCustomerSheetTable(salesTable,"sale_date",sheet.account.id),
-  readCustomerSheetTable(paymentsTable,"payment_date",sheet.account.id)
+  readCustomerSheetTable(paymentsTable,"payment_date",sheet.account.id),
+  readPurchases(sheet.account.id)
  ]);
  if(activeCustomerSheet===sheet){sheet.entries=entries;renderCustomerSheet();}
 }
@@ -1185,18 +1351,18 @@ async function openCustomerSheet(account){
  const unit=currency(account);
  $("customerSheetName").textContent=account.name+" · "+unit;
  $("customerSheetDate").value=today();
- $("customerSheetAdded").textContent="যোগ ("+unit+")";
- $("customerSheetJoma").textContent="জমা ("+unit+")";
+ $("customerSheetAdded").textContent="Added ("+unit+")";
+ $("customerSheetJoma").textContent="Deposit ("+unit+")";
  $("customerSheetBalance").textContent="Balance ("+unit+")";
  $("customerSheetType").innerHTML=unit==="SAR"
-  ?'<option value="conversion">টাকা দিলাম (BDT)</option><option value="deposit">রিয়াল জমা পেলাম (SAR)</option>'
-  :'<option value="sale">রিয়াল বিক্রি</option><option value="payment">টাকা জমা পেলাম (BDT)</option>';
+  ?'<option value="conversion">Paid Out (BDT)</option><option value="deposit">Deposit Received (SAR)</option>'
+  :'<option value="sale">SAR Sale</option><option value="payment">Deposit Received (BDT)</option>';
  customerEntryForm.reset();
  updateCustomerEntry();
  $("customerSheetRows").innerHTML="";
  $("customerSheetTotal").innerHTML="";
  $("customerSheetFields").disabled=true;
- $("customerSheetStatus").textContent="হিসাব লোড হচ্ছে…";
+ $("customerSheetStatus").textContent="Loading account…";
  customerSheet.classList.remove("hidden");
  customerSheet.scrollIntoView({behavior:"smooth",block:"start"});
  try{
@@ -1206,7 +1372,7 @@ async function openCustomerSheet(account){
    $("customerSheetStatus").textContent="";
   }
  }catch(error){
-  if(activeCustomerSheet===sheet)$("customerSheetStatus").textContent="হিসাব লোড হয়নি। আবার গ্রাহকের হিসাব খুলুন। "+error.message;
+  if(activeCustomerSheet===sheet)$("customerSheetStatus").textContent="Could not load the account. Reopen the customer account. "+error.message;
  }
 }
 
@@ -1214,13 +1380,13 @@ function customerSheetPayload(account,date,entry){
  const amount=n(entry.amount),rate=n(entry.rate),cost=n(entry.cost);
  const kind=entry.kind;
  const isSar=currency(account)==="SAR";
- if(isSar?!["conversion","deposit"].includes(kind):!["sale","payment"].includes(kind))throw Error("লেনদেনের ধরন মিলছে না।");
- if(!date||!Number.isFinite(amount)||amount<=0)throw Error("তারিখ ও সঠিক পরিমাণ দিন।");
- if(!["Cash","Bank","Other"].includes(entry.method)||!entry.contact?.trim())throw Error("মাধ্যম ও নাম লিখুন।");
+ if(isSar?!["conversion","deposit"].includes(kind):!["sale","payment"].includes(kind))throw Error("This transaction type is unavailable for the account currency.");
+ if(!date||!Number.isFinite(amount)||amount<=0)throw Error("Enter a date and a valid amount.");
+ if(!["Cash","Bank","Other"].includes(entry.method)||!entry.contact?.trim())throw Error("Select a payment method and enter a name.");
  let reference=entry.method+" — "+entry.contact.trim();
  if(entry.method==="Bank"){
   const bank=entry.bank==="other"?entry.otherBank?.trim():entry.bank;
-  if(!bank||(entry.bank!=="other"&&!bangladeshBanks.includes(bank)))throw Error("ব্যাংকের নাম দিন।");
+  if(!bank||(entry.bank!=="other"&&!bangladeshBanks.includes(bank)))throw Error("Enter the bank name.");
   reference+=" · "+bank;
  }
  const data={party_id:account.id,created_by:user.id};
@@ -1229,9 +1395,9 @@ function customerSheetPayload(account,date,entry){
   const amountField=isSar?"amount_sar":"amount_bdt";
   return {table:paymentsTable,data:{...data,payment_date:date,[amountField]:amount,reference,notes:""}};
  }
- if(!Number.isFinite(rate)||rate<=0||!Number.isFinite(cost)||cost<0)throw Error("সঠিক রেট দিন।");
+ if(!Number.isFinite(rate)||rate<=0||!Number.isFinite(cost)||cost<0)throw Error("Enter a valid rate.");
  const sar=kind==="conversion"?bdtToSar(amount,rate):amount;
- if(!Number.isFinite(sar)||sar<=0)throw Error("রিয়ালের পরিমাণ শূন্যের বেশি হতে হবে।");
+ if(!Number.isFinite(sar)||sar<=0)throw Error("The SAR amount must be greater than zero.");
  const saleData={...data,sale_date:date,sar_amount:sar,selling_rate:rate,cost_rate:isSar?rate:cost,notes:reference};
  if(isSar)saleData.source_bdt_amount=amount;
  return {table:salesTable,data:saleData};
@@ -1259,7 +1425,7 @@ customerEntryForm.onsubmit=async event=>{
   const {table,data}=customerSheetPayload(sheet.account,date,entry);
   check(await db.from(table).insert(data));
  }catch(error){
-  status.textContent="সেভ হয়নি। "+error.message;
+  status.textContent="Could not save the entry. "+error.message;
   sheet.saving=false;
   fields.disabled=false;
   return;
@@ -1272,10 +1438,10 @@ customerEntryForm.onsubmit=async event=>{
  try{
   await refreshCustomerSheet(sheet);
   await loadAll();
-  status.textContent="এন্ট্রি সেভ হয়েছে।";
+  status.textContent="Entry saved.";
   fields.disabled=false;
  }catch(error){
-  status.textContent="এন্ট্রি সেভ হয়েছে। হিসাব দেখতে গ্রাহকের পেজ আবার খুলুন।";
+  status.textContent="Entry saved. Reopen the customer account to view the updated balance.";
  }finally{
   sheet.saving=false;
  }
@@ -1288,7 +1454,7 @@ function renderAccounts(){
  const parties=partyList.filter(p=>(p.party_type||"party")==="party");
  const customers=partyList.filter(p=>p.party_type==="customer");
  $("partyRows").innerHTML=parties.map(p=>`<tr><td>${esc(p.name)}</td><td><span class="te-tag">Party</span></td><td>${esc(p.phone)}</td><td>${money(opening(p),p)}</td><td>${money(due(p),p)}</td><td>${buttons("party",p.id)}</td></tr>`).join("")||'<tr><td colspan="6">No parties found</td></tr>';
- $("customerAccountRows").innerHTML=customers.map(p=>`<tr><td>${esc(p.name)}</td><td class="te-id">${esc(p.id)}</td><td>${esc(p.phone)}</td><td>${money(due(p),p)}</td><td><button type="button" data-customer-sheet="${esc(p.id)}">হিসাব খুলুন</button>${buttons("party",p.id)}</td></tr>`).join("")||'<tr><td colspan="5">No customers found</td></tr>';
+ $("customerAccountRows").innerHTML=customers.map(p=>`<tr><td>${esc(p.name)}</td><td class="te-id">${esc(p.id)}</td><td>${esc(p.phone)}</td><td>${money(due(p),p)}</td><td><button type="button" data-customer-sheet="${esc(p.id)}">Open Account</button>${buttons("party",p.id)}</td></tr>`).join("")||'<tr><td colspan="5">No customers found</td></tr>';
  $("partyCount").textContent=parties.length;
 }
 const partyHeader=$("parties").querySelector("thead tr");
@@ -1324,7 +1490,7 @@ async function loadUsers(){
  }catch(err){tbody.innerHTML=`<tr><td colspan="4">${esc(err.message)}</td></tr>`;}
 }
 $("refreshUsers").onclick=loadUsers;
-[customerNav,userNav].forEach(btn=>btn.onclick=async()=>{showPage(btn.dataset.page);if(btn.dataset.page==="users")await loadUsers();});
+userNav.onclick=async()=>{showPage("users");await loadUsers();};
 // Never expose admin-only user details to employees.
 const originalLoginView=loginView;
 loginView=async function(){await originalLoginView();userNav.classList.toggle("hidden",!admin());};
@@ -1346,23 +1512,23 @@ function sarConversionDescription(entry){
  return fmtSar(entry.source_bdt_amount)+" BDT ÷ "+fmtSar(entry.selling_rate)
   +" BDT/SAR = "+fmtSar(sarEntryAmount(entry))+" SAR";
 }
-function buildSarLedger(p,ss,rr){
+function buildSarLedger(p,ss,rr,purchases){
  const entries=[
   ...ss.map(x=>({date:x.sale_date,created:x.created_at||"",details:x.source_bdt_amount==null?"SAR sale "+fmtSar(x.sar_amount)+" SAR @ "+fmtSar(x.selling_rate):sarConversionDescription(x),debit:sarEntryAmount(x),credit:0})),
-  ...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"SAR received "+(x.reference||""),debit:0,credit:n(x.amount_sar)}))
+  ...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"SAR received "+(x.reference||""),debit:0,credit:n(x.amount_sar)})),
+  ...purchaseLedgerRows(purchases)
  ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
  let balance=opening(p);
  const rows=[{date:"",details:"Opening Balance SAR",debit:balance,credit:0,balance}];
  entries.forEach(x=>{balance+=x.debit-x.credit;rows.push({...x,balance})});
  return rows;
 }
-const sarNav=document.createElement("button");sarNav.dataset.page="sarTransactions";sarNav.textContent="SAR Ledger Entries";$("nav").appendChild(sarNav);
 const sarSection=document.createElement("section");sarSection.id="sarTransactions";sarSection.className="card page hidden";
 sarSection.innerHTML=`
 <h2>SAR Ledger Entries</h2>
-<p class="muted">BDT ÷ rate adds to the SAR balance. SAR Joma subtracts from it.</p>
+<p class="muted">BDT ÷ rate adds to the SAR balance. SAR deposits subtract from it.</p>
 <form id="sarSaleForm"><h3>Add to SAR Balance</h3><div class="grid">
-<div><label for="sarEntryMode">Entry Type</label><select id="sarEntryMode"><option value="conversion">BD টাকা + রেট</option><option value="sale">SAR Sale</option></select></div>
+<div><label for="sarEntryMode">Entry Type</label><select id="sarEntryMode"><option value="conversion">BDT Amount + Rate</option><option value="sale">SAR Sale</option></select></div>
 <div><label>Account (SAR)</label><select name="party_id" class="sarParty" required></select></div>
 <div><label>Date</label><input name="sale_date" type="date" required></div>
 <div id="sarBdtField"><label>BD Amount (BDT)</label><input name="source_bdt_amount" type="number" min=".01" step=".01" required></div>
@@ -1373,16 +1539,23 @@ sarSection.innerHTML=`
 <p id="sarConversionPreview" class="muted" aria-live="polite"></p>
 <button type="submit">Save SAR Entry</button><button type="button" class="secondary" id="sarSaleCancel">Cancel Edit</button></form>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Account</th><th>BD Amount</th><th>Rate (BDT/SAR)</th><th>SAR Added</th><th>Notes</th><th>Profit BDT</th><th>Actions</th></tr></thead><tbody id="sarSaleRows"></tbody></table></div>
-<form id="sarPaymentForm"><h3>SAR Joma · রিয়াল জমা</h3><div class="grid">
+<form id="sarPaymentForm"><h3>SAR Deposit</h3><div class="grid">
 <div><label>Account (SAR)</label><select name="party_id" class="sarParty" required></select></div>
 <div><label>Date</label><input name="payment_date" type="date" required></div>
 <div><label>Received SAR</label><input name="amount_sar" type="number" min=".01" step=".01" required></div>
 <div><label>Reference</label><input name="reference"></div>
 <div><label>Notes</label><input name="notes"></div></div>
-<button type="submit">Save SAR Joma</button><button type="button" class="secondary" id="sarPaymentCancel">Cancel Edit</button></form>
+<button type="submit">Save SAR Deposit</button><button type="button" class="secondary" id="sarPaymentCancel">Cancel Edit</button></form>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Account</th><th>Received SAR</th><th>Reference</th><th>Actions</th></tr></thead><tbody id="sarPaymentRows"></tbody></table></div>`;
 $("staff").appendChild(sarSection);
-sarNav.onclick=()=>showPage("sarTransactions");
+$("sarSalesShortcut").onclick=()=>{
+ showPage("sarTransactions");
+ if(!sarEdit.sarSale){
+  $("sarEntryMode").value="sale";
+  updateSarEntryForm();
+ }
+ $("sarSaleForm").scrollIntoView({block:"start"});
+};
 const sarForms={sarSale:"sarSaleForm",sarPayment:"sarPaymentForm"};
 const sarTables={sarSale:"party_sar_sales",sarPayment:"party_sar_payments"};
 let sarEdit={sarSale:null,sarPayment:null};
@@ -1488,7 +1661,7 @@ if(db)loginView().catch(err=>{ $("login").classList.remove("hidden"); $("app").c
 const panel=document.createElement('section');
 panel.className='card';
 panel.innerHTML=`<h2>Account Statement — PDF / CSV</h2>
-<p class="muted">Party Ledger-এ Party/Customer নির্বাচন করুন। PDF-এ আসল TE লোগো থাকবে।</p>
+<p class="muted">Select a party or customer in Party Ledger. The PDF includes the TE logo.</p>
 <div class="grid"><div><label>From Date</label><input id="stmtFrom" type="date"></div>
 <div><label>To Date</label><input id="stmtTo" type="date"></div></div>
 <div class="actions"><button type="button" id="stmtPdf">Statement PDF / Print</button><button type="button" class="secondary" id="stmtCsv">Statement CSV</button></div>`;
@@ -1509,13 +1682,14 @@ const htmlSafe=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','
 function prepare(){
  const id=document.getElementById('ledgerParty').value;
  const p=partyList.find(x=>String(x.id)===String(id));
- if(!p)throw Error('প্রথমে Party Ledger থেকে একটি Party বা Customer নির্বাচন করুন।');
+ if(!p)throw Error('Select a party or customer in Party Ledger first.');
  const unit=currency(p),from=document.getElementById('stmtFrom').value,to=document.getElementById('stmtTo').value;
- if(from&&to&&from>to)throw Error('From Date অবশ্যই To Date-এর আগে হবে।');
+ if(from&&to&&from>to)throw Error('The From Date must be on or before the To Date.');
  const sales=(unit==='SAR'?sarSales:saleList).filter(x=>String(x.party_id)===String(id));
  const pays=(unit==='SAR'?sarPayments:paymentList).filter(x=>String(x.party_id)===String(id));
  const tx=[...sales.map(x=>({date:x.sale_date,created:x.created_at||'',description:unit==='SAR'&&x.source_bdt_amount!=null?sarConversionDescription(x):saleDescription(x),debit:unit==='SAR'?sarEntryAmount(x):num(x.total_bdt),credit:0})),
- ...pays.map(x=>({date:x.payment_date,created:x.created_at||'',description:(unit==='SAR'?'SAR Joma':'Payment Received')+(x.reference?' — '+x.reference:''),debit:0,credit:unit==='SAR'?num(x.amount_sar):num(x.amount_bdt)}))]
+ ...pays.map(x=>({date:x.payment_date,created:x.created_at||'',description:(unit==='SAR'?'SAR Deposit':'Payment Received')+(x.reference?' — '+x.reference:''),debit:0,credit:unit==='SAR'?num(x.amount_sar):num(x.amount_bdt)})),
+ ...purchaseLedgerRows(purchasesFor(id)).map(({details,...entry})=>({...entry,description:details}))]
  .sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
  let openingBalance=opening(p);
  for(const t of tx){if(from&&t.date<from)openingBalance+=t.debit-t.credit;}
