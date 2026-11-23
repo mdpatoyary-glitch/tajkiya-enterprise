@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -176,7 +175,7 @@ tbody tr:hover{background:#f7fbfe}
 <div class="stat"><small>Total Riyal Sold</small><strong id="totalSar">0</strong></div>
 <div class="stat"><small>Total Sales BDT</small><strong id="totalSales">0</strong></div>
 <div class="stat"><small>Payments BDT</small><strong id="totalPayments">0</strong></div>
-<div class="stat"><small>Outstanding BDT</small><strong id="totalDue">0</strong></div>
+<div class="stat"><small>Net Due BDT</small><strong id="totalDue">0</strong></div>
 <div class="stat"><small>Gross Profit BDT</small><strong id="totalProfit">0</strong></div>
 <div class="stat"><small>Registered Parties</small><strong id="partyCount">0</strong></div>
 </div>
@@ -235,8 +234,8 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="purchases" class="card page hidden">
-<h2>Riyal Buy</h2>
-<p class="muted">Record a completed purchase after receiving SAR and paying the customer in BDT. The purchase appears in the customer ledger and as Cash In in the Cash Book.</p>
+<h2 id="purchaseTitle">Riyal Buy</h2>
+<p class="muted">Record SAR received and the BDT actually paid. Any difference goes to the customer ledger.</p>
 <form id="purchaseForm">
 <fieldset id="purchaseFields" disabled>
 <div class="grid">
@@ -244,16 +243,27 @@ tbody tr:hover{background:#f7fbfe}
 <div><label for="purchaseDate">Date</label><input id="purchaseDate" name="purchase_date" type="date" required></div>
 <div><label for="purchaseSar">SAR Received</label><input id="purchaseSar" name="amount_sar" type="number" min="0.01" max="999999999999.99" step="0.01" required></div>
 <div><label for="purchaseRate">Buy Rate (BDT/SAR)</label><input id="purchaseRate" name="rate_bdt" type="number" min="0.0001" max="99999999.9999" step="0.0001" required></div>
+<div><label for="purchasePaid">BDT Paid (Actual)</label><input id="purchasePaid" name="paid_bdt" type="number" min="0" max="999999999999999.99" step="0.01" required></div>
+<div><label for="purchaseMethod">Payment Method</label><select id="purchaseMethod" name="payment_method" required><option value="">Select Method</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Shomiti">Shomiti</option></select></div>
+<div id="purchaseBankField" class="hidden"><label for="purchaseBank">Bangladesh Bank Name</label><select id="purchaseBank" required disabled></select></div>
+<div id="purchaseOtherBankField" class="hidden"><label for="purchaseOtherBank">Other Bank Name</label><input id="purchaseOtherBank" maxlength="100" required disabled></div>
+<div><label for="purchaseReference">Recipient / Reference (Optional)</label><input id="purchaseReference" name="payment_reference" maxlength="120"></div>
 <div><label for="purchaseNotes">Notes</label><input id="purchaseNotes" name="notes" maxlength="250"></div>
 </div>
 <p id="purchasePreview" aria-live="polite"></p>
-<button type="submit">Save Purchase</button>
+<button type="submit" id="savePurchase">Save Purchase</button>
+<button type="button" class="secondary hidden" id="cancelPurchaseEdit">Cancel Edit</button>
 </fieldset>
 </form>
 <p id="purchaseStatus" role="status"></p>
+<div class="grid no-print">
+<div><label for="purchaseMemoCustomer">Filter by Customer</label><select id="purchaseMemoCustomer"></select></div>
+<div><label for="purchaseMemoDate">Filter by Date</label><input id="purchaseMemoDate" type="date"></div>
+</div>
+<div class="actions no-print"><button type="button" id="printPurchaseMemo">Print / PDF Memo</button></div>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Date</th><th>Customer</th><th>SAR Received</th><th>Buy Rate</th><th>BDT Paid</th><th>Notes</th></tr></thead>
+<thead><tr><th>Date</th><th>Customer</th><th>Method / Bank</th><th>SAR Received</th><th>Rate</th><th>BDT Value</th><th>BDT Paid</th><th>Payment Balance</th><th class="no-print">Actions</th></tr></thead>
 <tbody id="purchaseRows"></tbody>
 </table>
 </div>
@@ -288,6 +298,7 @@ tbody tr:hover{background:#f7fbfe}
 <div class="stat"><small>Total Sales</small><strong id="ledgerSales">0</strong></div>
 <div class="stat"><small>Payments</small><strong id="ledgerPaid">0</strong></div>
 <div class="stat"><small>Current Due</small><strong id="ledgerDue">0</strong></div>
+<div class="stat hidden" id="ledgerSrBox"><small>SR Balance</small><strong id="ledgerSr"></strong></div>
 </div>
 <div class="actions">
 <button onclick="exportLedger()">Excel CSV</button>
@@ -331,7 +342,8 @@ tbody tr:hover{background:#f7fbfe}
 <input name="entry_type" type="hidden" value="in">
 <div class="grid">
 <div><label for="cashEntryDate">Date</label><input id="cashEntryDate" name="entry_date" type="date" required></div>
-<div><label for="cashEntryName">Person / Reference</label><input id="cashEntryName" name="person_name" required></div>
+<div id="cashCustomerField" class="hidden"><label for="cashCustomer">Customer (Optional)</label><select id="cashCustomer" name="customer_id" disabled></select></div>
+<div id="cashNameField"><label for="cashEntryName">Person / Reference</label><input id="cashEntryName" name="person_name" required></div>
 <div><label for="cashEntryAmount">Amount (SAR)</label><input id="cashEntryAmount" name="amount_sar" type="number" min=".01" step=".01" required></div>
 <div><label for="cashEntryNotes">Notes</label><input id="cashEntryNotes" name="notes"></div>
 </div>
@@ -368,6 +380,7 @@ tbody tr:hover{background:#f7fbfe}
 <div class="stat"><small>Sales</small><strong id="cSales">0</strong></div>
 <div class="stat"><small>Payments</small><strong id="cPaid">0</strong></div>
 <div class="stat"><small>Current Due</small><strong id="cDue">0</strong></div>
+<div class="stat hidden" id="customerSrBox"><small>SR Balance</small><strong id="customerSr"></strong></div>
 </div>
 <button onclick="window.print()">Print / PDF</button>
 <div class="tablewrap">
@@ -441,7 +454,7 @@ function money(v,p){
  return (unit==="SAR"?fmtSar(v):fmt(v))+" "+unit;
 }
 function due(p){
-if(currency(p)==="SAR")return opening(p)+sarSales.filter(x=>x.party_id===p.id).reduce((a,x)=>a+sarEntryAmount(x),0)-sarPayments.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.amount_sar),0);
+if(currency(p)==="SAR")return opening(p)+sarSales.filter(x=>x.party_id===p.id).reduce((a,x)=>a+sarEntryAmount(x),0)-sarPayments.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.amount_sar),0)+customerSrBalance(purchasesFor(p.id),cashDepositsFor(p.id));
 return opening(p)+saleList.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.total_bdt),0)-paymentList.filter(x=>x.party_id===p.id).reduce((a,x)=>a+n(x.amount_bdt),0);
 }
 function updateCurrencyForm(){
@@ -496,32 +509,100 @@ async function loadCashEntries(){
  }
 }
 
-async function readPurchases(accountId){
+async function readPurchases(accountId, legacy=false){
  const rows=[];
  const limit=500;
+ const baseFields="id,party_id,purchase_date,amount_sar,rate_bdt,total_bdt,notes,created_at";
+ const fields=legacy?baseFields:baseFields+",paid_bdt,payment_method,bank_name,payment_reference";
  for(let offset=0;;offset+=limit){
-  let query=db.from("riyal_purchases").select("id,party_id,purchase_date,amount_sar,rate_bdt,total_bdt,notes,created_at");
+  let query=db.from("riyal_purchases").select(fields);
   if(accountId)query=query.eq("party_id",accountId);
   const {data,error}=await query.order("purchase_date",{ascending:false})
    .order("id",{ascending:false}).range(offset,offset+limit-1);
-  if(error?.code==="42P01"||error?.code==="PGRST205")return null;
+  if(error?.code==="42P01"||error?.code==="PGRST205")return {rows:[],ready:false};
+  if(error?.code==="42703"&&!legacy)return readPurchases(accountId,true);
   if(error)throw error;
   rows.push(...data);
-  if(data.length<limit)return rows;
+  if(data.length<limit)return {rows,ready:!legacy};
  }
 }
 
-function purchaseDescription(purchase){
- const trade="Riyal Buy · "+fmt(purchase.amount_sar)+" SAR received @ "
-  +fmtBuyRate(purchase.rate_bdt)+" BDT/SAR · "+fmt(purchase.total_bdt)+" BDT paid";
- return trade+(purchase.notes?" · "+purchase.notes:"");
+function purchasePaid(purchase){
+ return n(purchase.paid_bdt??purchase.total_bdt);
+}
+function purchaseDifference(purchase){
+ return (Math.round(purchasePaid(purchase)*100)-Math.round(n(purchase.total_bdt)*100))/100;
+}
+function payoutDifferenceSr(difference,rate){
+ return Math.sign(difference)*roundSar(Math.abs(difference)/n(rate));
+}
+function purchaseAdjustment(account,purchase){
+ return currency(account)==="SAR"?payoutDifferenceSr(purchaseDifference(purchase),purchase.rate_bdt):0;
+}
+function purchasePayoutText(difference,rate){
+ const amount=fmtSar(Math.abs(payoutDifferenceSr(difference,rate)))+" SR";
+ if(difference>0)return "SR Due: "+amount;
+ if(difference<0)return "Due to Customer: "+amount;
+ return "Paid in Full";
+}
+function customerSrBalance(purchases,deposits,to=""){
+ const purchased=purchases.filter(row=>!to||row.purchase_date<=to)
+  .reduce((sum,row)=>sum+payoutDifferenceSr(purchaseDifference(row),row.rate_bdt),0);
+ const received=deposits.filter(row=>!to||row.entry_date<=to).reduce((sum,row)=>sum+n(row.amount_sar),0);
+ return roundSar(purchased-received);
+}
+function displaySrBalance(value){
+ return value===0?"0 SR":value>0?"SR Due: "+fmtSar(value)+" SR":
+  "Due to Customer: "+fmtSar(Math.abs(value))+" SR";
+}
+function renderSrBalance(box,valueId,account,purchases,deposits){
+ const visible=account?.party_type==="customer"&&currency(account)==="BDT";
+ $(box).classList.toggle("hidden",!visible);
+ if(visible)$(valueId).textContent=displaySrBalance(customerSrBalance(purchases,deposits));
 }
 
-function purchaseLedgerRows(purchases){
- return purchases.map(purchase=>({
-  date:purchase.purchase_date,created:purchase.created_at,
-  details:purchaseDescription(purchase),debit:0,credit:0
- }));
+function cashDepositsFor(accountId){
+ return cashList.filter(row=>row.customer_id===accountId&&row.entry_type==="in");
+}
+async function readCustomerCashDeposits(accountId){
+ const rows=[];
+ const pageSize=500;
+ for(let offset=0;;offset+=pageSize){
+  const {data,error}=await db.rpc("read_customer_cash_deposits",{p_customer_id:accountId})
+   .order("entry_date").order("id").range(offset,offset+pageSize-1);
+  if(error?.code==="PGRST202"||error?.code==="42883")return [];
+  if(error)throw error;
+  rows.push(...data);
+  if(data.length<pageSize)return rows;
+ }
+}
+function cashDepositDescription(row){
+ return "Cash Deposit · "+fmtSar(row.amount_sar)+" SR"+(row.notes?" · "+row.notes:"");
+}
+function cashDepositRows(account,deposits){
+ return deposits.map(row=>({date:row.entry_date,created:row.created_at||"",details:cashDepositDescription(row),
+  debit:0,credit:currency(account)==="SAR"?n(row.amount_sar):0}));
+}
+
+function purchaseMethod(purchase){
+ return [purchase.payment_method,purchase.bank_name].filter(Boolean).join(" · ")||"—";
+}
+function purchaseDescription(purchase){
+ const difference=purchaseDifference(purchase);
+ return [
+  "Riyal Buy · "+fmt(purchase.amount_sar)+" SAR @ "+fmtBuyRate(purchase.rate_bdt)+" BDT/SAR",
+  fmt(purchase.total_bdt)+" BDT value",fmt(purchasePaid(purchase))+" BDT paid",
+  purchasePayoutText(difference,purchase.rate_bdt),
+  purchase.payment_method?purchaseMethod(purchase):"",purchase.payment_reference,purchase.notes
+ ].filter(Boolean).join(" · ");
+}
+
+function purchaseLedgerRows(account,purchases){
+ return purchases.map(purchase=>{
+  const adjustment=purchaseAdjustment(account,purchase);
+  return {date:purchase.purchase_date,created:purchase.created_at,
+   details:purchaseDescription(purchase),debit:Math.max(adjustment,0),credit:Math.max(-adjustment,0)};
+ });
 }
 
 function purchasesFor(accountId){
@@ -549,11 +630,11 @@ readPurchases()
 ]);
 partyList=check(p);saleList=check(s);paymentList=check(r);
 sarSales=check(ss);sarPayments=check(sp);
-purchaseList=purchases??[];
+purchaseList=purchases.rows;
 cashList=[...c,...purchaseCashEntries()].sort((a,b)=>b.entry_date.localeCompare(a.entry_date)
  ||String(b.created_at??"").localeCompare(String(a.created_at??"")));
 renderAll();
-renderPurchases(purchases!==null);
+renderPurchases(purchases.ready);
 msg("Data updated");
 return true;
 }catch(err){msg("Load error: "+err.message,true);return false;}
@@ -587,69 +668,234 @@ const purchaseStatus=$("purchaseStatus");
 const buyRateFormat=new Intl.NumberFormat("en-US",{maximumFractionDigits:4});
 function fmtBuyRate(rate){return buyRateFormat.format(rate);}
 
+function filteredPurchases(){
+ const account=$("purchaseMemoCustomer").value;
+ const date=$("purchaseMemoDate").value;
+ return purchaseList.filter(row=>(!account||row.party_id===account)&&(!date||row.purchase_date===date));
+}
+
+function purchaseMemoCells(purchase){
+ const difference=purchaseDifference(purchase);
+ const method=[purchaseMethod(purchase),purchase.payment_reference,purchase.notes].filter(Boolean).join(" · ");
+ return [purchase.purchase_date,partyName(purchase.party_id),method,fmt(purchase.amount_sar),
+  fmtBuyRate(purchase.rate_bdt),fmt(purchase.total_bdt),fmt(purchasePaid(purchase)),
+  purchasePayoutText(difference,purchase.rate_bdt)];
+}
+
+function renderPurchaseRows(){
+ const rows=filteredPurchases();
+ $("purchaseRows").innerHTML=rows.map(purchase=>`<tr>
+  ${purchaseMemoCells(purchase).map(value=>`<td>${esc(value)}</td>`).join("")}
+  <td class="no-print"><button type="button" class="secondary" data-purchase-memo="${esc(purchase.id)}">Memo</button>
+  ${admin()?`<button type="button" data-purchase-edit="${esc(purchase.id)}">Edit Payment</button>`:""}</td></tr>`
+ ).join("")||'<tr><td colspan="9">No matching purchases.</td></tr>';
+ $("printPurchaseMemo").disabled=!rows.length;
+}
+
 function renderPurchases(available){
- const customerSelect=$("purchaseCustomer");
- const selected=customerSelect.value;
  const customers=partyList.filter(p=>p.party_type==="customer");
- customerSelect.innerHTML='<option value="">Select Customer</option>'+customers.map(p=>
-  `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
- if(customers.some(p=>p.id===selected))customerSelect.value=selected;
+ const options=customers.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+ for(const [id,placeholder] of [["purchaseCustomer","Select Customer"],["purchaseMemoCustomer","All Customers"]]){
+  const select=$(id);
+  const selected=select.value;
+  select.innerHTML=`<option value="">${placeholder}</option>`+options;
+  if(customers.some(p=>p.id===selected))select.value=selected;
+ }
  $("purchaseFields").disabled=!available||savingPurchase;
  purchaseStatus.textContent=available?(customers.length?"":"Add a customer from the Customers menu first."):
-  "Run riyal_buy.sql in Supabase to enable this form.";
- $("purchaseRows").innerHTML=purchaseList.map(purchase=>
-  `<tr><td>${esc(purchase.purchase_date)}</td><td>${esc(partyName(purchase.party_id))}</td><td>${fmt(purchase.amount_sar)}</td><td>${fmtBuyRate(purchase.rate_bdt)}</td><td>${fmt(purchase.total_bdt)}</td><td>${esc(purchase.notes)}</td></tr>`
- ).join("")||'<tr><td colspan="6">No purchases recorded.</td></tr>';
+  "Run the updated riyal_buy.sql in Supabase to enable this form.";
+ renderPurchaseRows();
+}
+
+function printPurchaseMemo(rows){
+ if(!rows.length)return;
+ const preview=window.open("","_blank");
+ if(!preview){purchaseStatus.textContent="Allow pop-ups for this site to open the memo.";return;}
+ const ordered=[...rows].sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date)||a.created_at.localeCompare(b.created_at));
+ const valueCents=ordered.reduce((total,row)=>total+Math.round(n(row.total_bdt)*100),0);
+ const paidCents=ordered.reduce((total,row)=>total+Math.round(purchasePaid(row)*100),0);
+ const received=ordered.reduce((total,row)=>total+n(row.amount_sar),0);
+ const from=ordered[0].purchase_date;
+ const to=ordered.at(-1).purchase_date;
+ const customer=ordered.every(row=>row.party_id===ordered[0].party_id)?partyName(ordered[0].party_id):"Multiple Customers";
+ const differences=ordered.map(row=>payoutDifferenceSr(purchaseDifference(row),row.rate_bdt));
+ const srDue=differences.reduce((total,value)=>total+Math.max(0,value),0);
+ const unpaid=differences.reduce((total,value)=>total+Math.max(0,-value),0);
+ const totals=[
+  ["SAR Received",fmt(received)+" SAR"],
+  ["Purchase Value",fmt(valueCents/100)+" BDT"],
+  ["Amount Paid",fmt(paidCents/100)+" BDT"],
+  ["SR Due on Selected Purchases",fmtSar(srDue)+" SR"],
+  ["Due to Customers on Selected Purchases",fmtSar(unpaid)+" SR"]
+ ];
+ preview.document.open();
+ preview.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1"><title>Tajkiya Enterprise · Riyal Buy Memo</title>
+ <style>
+ @page{size:A4 landscape;margin:12mm}body{font:13px system-ui,sans-serif;color:#17314d;margin:20px}
+ h1{margin:12px 0 2px;font-size:24px}h2{margin:0;font-size:17px;font-weight:600}
+ header{border-bottom:2px solid #b8852d;margin-bottom:16px;padding-bottom:12px}
+ table{border-collapse:collapse;width:100%}thead{display:table-header-group}
+ th,td{text-align:left;border:1px solid #c2cbd4;padding:8px;overflow-wrap:anywhere}
+ thead th,.summary th{background:#edf3f7}tr{break-inside:avoid}tbody td:nth-child(n+4){font-variant-numeric:tabular-nums}
+ .summary{width:min(100%,390px);margin:16px 0 0 auto;break-inside:avoid}
+ .summary td{text-align:right}.tablewrap{overflow:auto}button{font:inherit;padding:8px 12px}
+ @media print{body{margin:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}button{display:none}.tablewrap{overflow:visible}}
+ </style></head><body>
+ <button type="button" onclick="window.print()">Print / Save as PDF</button>
+ <header><h1>Tajkiya Enterprise</h1><h2>Riyal Buy Memo</h2>
+ <p>${esc(customer)} · ${esc(from===to?from:from+" to "+to)}${ordered.length===1?" · Ref "+esc(ordered[0].id):""}</p></header>
+ <div class="tablewrap"><table><thead><tr><th>Date</th><th>Customer</th><th>Method / Bank / Reference</th><th>SAR Received</th>
+ <th>Rate (BDT/SAR)</th><th>Value (BDT)</th><th>Paid (BDT)</th><th>Payment Balance</th></tr></thead>
+ <tbody>${ordered.map(row=>"<tr>"+purchaseMemoCells(row).map(value=>`<td>${esc(value)}</td>`).join("")+"</tr>").join("")}</tbody></table></div>
+ <table class="summary" aria-label="Memo totals"><tbody>${totals.map(([label,value])=>
+  `<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`).join("")}</tbody></table>
+ </body></html>`);
+ preview.document.close();
+ preview.focus();
+}
+
+$("purchaseMemoCustomer").addEventListener("change",renderPurchaseRows);
+$("purchaseMemoDate").addEventListener("input",renderPurchaseRows);
+$("printPurchaseMemo").onclick=()=>printPurchaseMemo(filteredPurchases());
+$("purchaseRows").onclick=event=>{
+ const button=event.target.closest("[data-purchase-memo],[data-purchase-edit]");
+ if(!button)return;
+ const row=purchaseList.find(purchase=>purchase.id===(button.dataset.purchaseMemo||button.dataset.purchaseEdit));
+ if(!row)return;
+ if(button.dataset.purchaseEdit&&admin())editPurchasePayment(row);
+ else if(button.dataset.purchaseMemo)printPurchaseMemo([row]);
+};
+
+function updatePurchaseBankFields(){
+ const isBank=$("purchaseMethod").value==="Bank";
+ const isOther=isBank&&$("purchaseBank").value==="other";
+ $("purchaseBankField").classList.toggle("hidden",!isBank);
+ $("purchaseBank").disabled=!isBank;
+ $("purchaseOtherBankField").classList.toggle("hidden",!isOther);
+ $("purchaseOtherBank").disabled=!isOther;
+}
+
+function purchaseValueCents(){
+ const amount=BigInt($("purchaseSar").valueAsNumber.toFixed(2).replace(".",""));
+ const rate=BigInt($("purchaseRate").valueAsNumber.toFixed(4).replace(".",""));
+ return (amount*rate+5000n)/10000n;
 }
 
 function previewPurchase(){
- const amount=$("purchaseSar").valueAsNumber;
- const rate=$("purchaseRate").valueAsNumber;
- const sarHundredths=BigInt(amount.toFixed(2).replace(".",""));
- const rateTenThousandths=BigInt(rate.toFixed(4).replace(".",""));
- const cents=(sarHundredths*rateTenThousandths+5000n)/10000n;
- if(cents===0n){
-  $("purchasePreview").textContent="The BDT amount must be at least 0.01.";
+ const preview=$("purchasePreview");
+ preview.textContent="";
+ if(!$("purchaseSar").validity.valid||!$("purchaseRate").validity.valid)return;
+ const value=purchaseValueCents();
+ if(value===0n){
+  preview.textContent="The purchase value must be at least 0.01 BDT.";
   return;
  }
- const whole=(cents/100n).toLocaleString("en-US");
- const fraction=String(cents%100n).padStart(2,"0");
- $("purchasePreview").textContent="BDT Paid: "+whole+"."+fraction;
+ const amountText=cents=>{
+  const abs=cents<0n?-cents:cents;
+  return (abs/100n).toLocaleString("en-US")+"."+String(abs%100n).padStart(2,"0")+" BDT";
+ };
+ preview.textContent="Purchase Value: "+amountText(value);
+ if(!$("purchasePaid").validity.valid)return;
+ const paid=BigInt($("purchasePaid").valueAsNumber.toFixed(2).replace(".",""));
+ const difference=paid-value;
+ preview.textContent+=" · "+purchasePayoutText(Number(difference)/100,$("purchaseRate").valueAsNumber);
 }
 purchaseForm.addEventListener("input",()=>{
- $("purchasePreview").textContent="";
- if($("purchaseSar").validity.valid&&$("purchaseRate").validity.valid)previewPurchase();
+ updatePurchaseBankFields();
+ previewPurchase();
 });
 let previousPurchase=null;
 let savingPurchase=false;
+let editingPurchase=null;
+const purchaseDetails=["party_id","purchase_date","amount_sar","rate_bdt"];
+function editPurchasePayment(row){
+ if(savingPurchase)return;
+ editingPurchase=row;
+ for(const name of purchaseDetails)purchaseForm.elements[name].value=row[name];
+ for(const name of ["payment_method","payment_reference","notes"])purchaseForm.elements[name].value=row[name]??"";
+ purchaseForm.elements.paid_bdt.value=purchasePaid(row);
+ const bank=row.bank_name||"";
+ $("purchaseBank").value=bangladeshBanks.includes(bank)?bank:bank?"other":"";
+ $("purchaseOtherBank").value=$("purchaseBank").value==="other"?bank:"";
+ for(const name of purchaseDetails)purchaseForm.elements[name].disabled=true;
+ $("purchaseTitle").textContent="Edit Purchase Payment";
+ $("savePurchase").textContent="Update Payment";
+ $("cancelPurchaseEdit").classList.remove("hidden");
+ purchaseStatus.textContent="";
+ updatePurchaseBankFields();
+ previewPurchase();
+ purchaseForm.scrollIntoView({block:"start"});
+ $("purchasePaid").focus();
+}
+function finishPurchaseEdit(){
+ editingPurchase=null;
+ for(const name of purchaseDetails)purchaseForm.elements[name].disabled=false;
+ purchaseForm.elements.purchase_date.value=today();
+ $("purchaseTitle").textContent="Riyal Buy";
+ $("savePurchase").textContent="Save Purchase";
+ $("cancelPurchaseEdit").classList.add("hidden");
+ for(const name of ["amount_sar","rate_bdt","paid_bdt","payment_method","payment_reference","notes"])
+  purchaseForm.elements[name].value="";
+ $("purchaseBank").value="";
+ $("purchaseOtherBank").value="";
+ updatePurchaseBankFields();
+ $("purchasePreview").textContent="";
+}
+$("cancelPurchaseEdit").onclick=()=>{
+ if(savingPurchase)return;
+ finishPurchaseEdit();
+ purchaseStatus.textContent="";
+};
 purchaseForm.addEventListener("submit",async event=>{
  event.preventDefault();
  if(!staff()||savingPurchase||$("purchaseFields").disabled)return;
  const entry=formData(purchaseForm);
+ const editing=editingPurchase;
+ if(editing&&!admin())return;
+ if(editing)entry.party_id=editing.party_id;
  if(!partyList.some(p=>p.id===entry.party_id&&p.party_type==="customer")){
   purchaseStatus.textContent="Select a customer.";
   return;
  }
+ if(purchaseValueCents()===0n){
+  purchaseStatus.textContent="The purchase value must be at least 0.01 BDT.";
+  return;
+ }
  entry.notes=entry.notes.trim();
+ entry.payment_reference=entry.payment_reference.trim()||null;
+ const bank=$("purchaseBank").value;
+ entry.bank_name=entry.payment_method==="Bank"?
+  (bank==="other"?$("purchaseOtherBank").value.trim():bank):null;
+ if(entry.payment_method==="Bank"&&!entry.bank_name){
+  purchaseStatus.textContent="Enter the bank name.";
+  return;
+ }
  const key=JSON.stringify(entry);
- const id=previousPurchase?.key===key?previousPurchase.id:crypto.randomUUID();
- previousPurchase={key,id};
+ const id=editing?.id??(previousPurchase?.key===key?previousPurchase.id:crypto.randomUUID());
+ if(!editing)previousPurchase={key,id};
  savingPurchase=true;
  $("purchaseFields").disabled=true;
  purchaseStatus.textContent="Saving purchase…";
  try{
-  check(await db.from("riyal_purchases").upsert({id,...entry},{onConflict:"id",ignoreDuplicates:true}));
+  if(editing){
+   const {party_id,...payment}=entry;
+   let update=db.from("riyal_purchases").update(payment).eq("id",id);
+   for(const name of Object.keys(payment))
+    update=editing[name]==null?update.is(name,null):update.eq(name,editing[name]);
+   const changed=check(await update.select("id").maybeSingle());
+   if(!changed)throw Error("The payment changed or access was denied. Reload and reopen the payment.");
+  }else{
+   check(await db.from("riyal_purchases").upsert({id,...entry},{onConflict:"id",ignoreDuplicates:true}));
+  }
  }catch(error){
   purchaseStatus.textContent="Could not confirm the purchase. Retry the same entry. "+error.message;
   $("purchaseFields").disabled=false;
   savingPurchase=false;
   return;
  }
- previousPurchase=null;
- purchaseForm.elements.amount_sar.value="";
- purchaseForm.elements.rate_bdt.value="";
- purchaseForm.elements.notes.value="";
- $("purchasePreview").textContent="";
+ if(!editing)previousPurchase=null;
+ finishPurchaseEdit();
  const refreshed=await loadAll();
  if(activeCustomerSheet?.account.id===entry.party_id){
   try{await refreshCustomerSheet(activeCustomerSheet);}
@@ -657,8 +903,8 @@ purchaseForm.addEventListener("submit",async event=>{
  }
  savingPurchase=false;
  $("purchaseFields").disabled=false;
- purchaseStatus.textContent=refreshed?"Purchase saved to Customer Ledger and Cash Book.":
-  "Purchase saved. Use Refresh Data to reload the ledger and Cash Book.";
+ purchaseStatus.textContent=refreshed?(editing?"Payment updated in the customer ledger and memo.":
+  "Purchase saved to Customer Ledger and Cash Book."):"Saved. Use Refresh Data to reload the ledger and Cash Book.";
 });
 
 let cashPeriod="all";
@@ -698,6 +944,12 @@ function loadCashBookView(){
 
 function renderCash(){
  const {rows,incoming,outgoing}=loadCashBookView();
+ const customerSelect=$("cashCustomer");
+ const selectedCustomer=customerSelect.value;
+ customerSelect.innerHTML='<option value="">No linked customer</option>'+partyList
+  .filter(row=>row.party_type==="customer"||row.id===selectedCustomer).map(row=>
+   `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join("");
+ customerSelect.value=selectedCustomer;
  const label=$("cashPeriods").querySelector('[aria-pressed="true"]').textContent;
  $("cashPeriodLabel").textContent=label+" · "+rows.length+" entries";
  $("cashIn").textContent=fmt(incoming);
@@ -713,16 +965,28 @@ function renderCash(){
  }).join("")||'<tr><td colspan="4">No matching cash entries.</td></tr>';
 }
 
+function updateCashCustomerFields(kind){
+ const isIncoming=kind==="in";
+ const customer=$("cashCustomer");
+ const linked=isIncoming&&!!customer.value;
+ customer.disabled=!isIncoming;
+ $("cashCustomerField").classList.toggle("hidden",!isIncoming);
+ $("cashNameField").classList.toggle("hidden",linked);
+ $("cashEntryName").disabled=linked;
+}
+$("cashCustomer").onchange=()=>updateCashCustomerFields("in");
+
 function openCashForm(kind,editing=false){
  const form=$("cashForm");
  if(form.querySelector('[type="submit"]').disabled)return;
  if(!editing)resetForm("cash");
  form.elements.entry_type.value=kind;
+ updateCashCustomerFields(kind);
  $("cashFormTitle").textContent=(editing?"Edit ":"New ")+(kind==="out"?"Cash Out":"Cash In");
  form.classList.remove("hidden");
  if(!editing){
   form.scrollIntoView({behavior:"smooth",block:"start"});
-  $("cashEntryName").focus({preventScroll:true});
+  $(kind==="in"?"cashCustomer":"cashEntryName").focus({preventScroll:true});
  }
 }
 
@@ -882,11 +1146,12 @@ $("cashReportExcel").onclick=async()=>{
 };
 $("cashReportDialog").addEventListener("close",()=>{$("cashReportStatus").textContent="";});
 
-function buildLedger(p,ss,rr,purchases){
+function buildLedger(p,ss,rr,purchases,deposits=[]){
 const entries=[
 ...ss.map(x=>({date:x.sale_date,created:x.created_at||"",details:"Sale "+fmt(x.sar_amount)+" SAR @ "+x.selling_rate,debit:n(x.total_bdt),credit:0})),
 ...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"Payment "+(x.reference||""),debit:0,credit:n(x.amount_bdt)})),
-...purchaseLedgerRows(purchases)
+...purchaseLedgerRows(p,purchases),
+  ...cashDepositRows(p,deposits)
 ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
 let balance=n(p.opening_due_bdt);
 const rows=[{date:"",details:"Opening Due",debit:balance,credit:0,balance}];
@@ -899,14 +1164,16 @@ return rows.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.details)}</td><td>${f
 function renderLedger(){
 const id=$("ledgerParty").value;
 const p=partyList.find(x=>x.id===id);
+const purchases=purchasesFor(id),deposits=cashDepositsFor(id);
+renderSrBalance("ledgerSrBox","ledgerSr",p,purchases,deposits);
 $("ledgerSales").previousElementSibling.textContent=p&&currency(p)==="SAR"?"Total SAR Added":"Total Sales";
 if(!p){ledgerData=[];$("ledgerRows").innerHTML='<tr><td colspan="5">Select a party or customer to view the ledger.</td></tr>';["ledgerSales","ledgerPaid","ledgerDue"].forEach(id=>$(id).textContent="0");return}
 if(currency(p)==="SAR"){
  const ss=sarSales.filter(x=>x.party_id===id),rr=sarPayments.filter(x=>x.party_id===id);
  $("ledgerSales").textContent=fmtSar(ss.reduce((a,x)=>a+sarEntryAmount(x),0))+" SAR";
- $("ledgerPaid").textContent=fmtSar(rr.reduce((a,x)=>a+n(x.amount_sar),0))+" SAR";
+ $("ledgerPaid").textContent=fmtSar(rr.reduce((a,x)=>a+n(x.amount_sar),0)+deposits.reduce((a,x)=>a+n(x.amount_sar),0))+" SAR";
  $("ledgerDue").textContent=money(due(p),p);
- ledgerData=buildSarLedger(p,ss,rr,purchasesFor(id));
+ ledgerData=buildSarLedger(p,ss,rr,purchases,deposits);
  $("ledgerRows").innerHTML=ledgerHTML(ledgerData,fmtSar);
  return;
 }
@@ -915,33 +1182,34 @@ const rr=paymentList.filter(x=>x.party_id===id);
 $("ledgerSales").textContent=fmt(ss.reduce((a,x)=>a+n(x.total_bdt),0));
 $("ledgerPaid").textContent=fmt(rr.reduce((a,x)=>a+n(x.amount_bdt),0));
 $("ledgerDue").textContent=fmt(due(p));
-ledgerData=buildLedger(p,ss,rr,purchasesFor(id));
+ledgerData=buildLedger(p,ss,rr,purchases,deposits);
 $("ledgerRows").innerHTML=ledgerHTML(ledgerData);
 }
 $("ledgerParty").onchange=renderLedger;
 
 async function loadCustomer(id){
 if(!id)throw Error("No party linked to customer");
-const [p,s,r,ssar,psar,purchases]=await Promise.all([
+const [p,s,r,ssar,psar,purchaseResult,deposits]=await Promise.all([
  db.from("parties").select("*").eq("id",id).single(),
  db.from("party_sales").select("*").eq("party_id",id),
  db.from("party_payments").select("*").eq("party_id",id),
  db.from("party_sar_sales").select("*").eq("party_id",id),
  db.from("party_sar_payments").select("*").eq("party_id",id),
- readPurchases(id)
+ readPurchases(id),readCustomerCashDeposits(id)
 ]);
-const party=check(p),ss=check(s),rr=check(r);
+const party=check(p),ss=check(s),rr=check(r),purchases=purchaseResult.rows;
+renderSrBalance("customerSrBox","customerSr",party,purchases,deposits);
 const sold=ss.reduce((a,x)=>a+n(x.total_bdt),0);
 if(currency(party)==="SAR"){
  const sales=check(ssar),payments=check(psar);
  const soldSar=sales.reduce((a,x)=>a+sarEntryAmount(x),0);
- const paidSar=payments.reduce((a,x)=>a+n(x.amount_sar),0);
+ const paidSar=payments.reduce((a,x)=>a+n(x.amount_sar),0)+deposits.reduce((a,x)=>a+n(x.amount_sar),0);
  $("customerPartyName").textContent=party.name+" (SAR)";
  $("cOpening").textContent=money(opening(party),party);
  $("cSales").textContent=fmtSar(soldSar)+" SAR";
  $("cPaid").textContent=fmtSar(paidSar)+" SAR";
- $("cDue").textContent=fmtSar(opening(party)+soldSar-paidSar)+" SAR";
- $("customerRows").innerHTML=ledgerHTML(buildSarLedger(party,sales,payments,purchases??[]),fmtSar);
+ $("cDue").textContent=fmtSar(opening(party)+soldSar-paidSar+customerSrBalance(purchases,[]))+" SAR";
+ $("customerRows").innerHTML=ledgerHTML(buildSarLedger(party,sales,payments,purchases,deposits),fmtSar);
  return;
 }
 const paid=rr.reduce((a,x)=>a+n(x.amount_bdt),0);
@@ -950,7 +1218,7 @@ $("cOpening").textContent=fmt(party.opening_due_bdt);
 $("cSales").textContent=fmt(sold);
 $("cPaid").textContent=fmt(paid);
 $("cDue").textContent=fmt(n(party.opening_due_bdt)+sold-paid);
-$("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr,purchases??[]));
+$("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr,purchases,deposits));
 }
 
 function salePreview(){
@@ -965,7 +1233,14 @@ const f=$(forms[type]),v=formData(f);
 if(type==="party")return {name:v.name.trim(),phone:v.phone||"",address:v.address||"",account_currency:v.account_currency,opening_due_bdt:v.account_currency==="BDT"?n(v.opening_balance):0,opening_balance_sar:v.account_currency==="SAR"?n(v.opening_balance):0,party_type:v.party_type||"party"};
 if(type==="sale")return {party_id:v.party_id,sale_date:v.sale_date,sar_amount:n(v.sar_amount),selling_rate:n(v.selling_rate),cost_rate:n(v.cost_rate),notes:v.notes||""};
 if(type==="payment")return {party_id:v.party_id,payment_date:v.payment_date,amount_bdt:n(v.amount_bdt),reference:v.reference||"",notes:v.notes||""};
-if(type==="cash")return {entry_date:v.entry_date,entry_type:v.entry_type,person_name:v.person_name.trim(),amount_sar:n(v.amount_sar),notes:v.notes||""};
+if(type==="cash"){
+ const customer=v.customer_id?partyList.find(account=>account.id===v.customer_id&&account.party_type==="customer"):null;
+ if(v.customer_id&&!customer)throw Error("Select a registered customer.");
+ const original=cashList.find(row=>row.id===editIds.cash&&!row.linkedPurchase);
+ return {entry_date:v.entry_date,entry_type:v.entry_type,person_name:customer?customer.name:v.person_name.trim(),
+  amount_sar:n(v.amount_sar),notes:v.notes||"",
+  ...(customer||original?.customer_id?{customer_id:customer?.id??null}:{})};
+}
 }
 function validate(type,p){
 if(type==="party"&&!p.name)throw Error("Enter a name");
@@ -1012,8 +1287,9 @@ check(await db.from(tables[type]).insert(p));
 }
 resetForm(type);
 await loadAll();
+if(type==="cash")await refreshOpenSheetAfterCash();
 if(type==="party")showPage(p.party_type==="customer"?"customers":"parties");
-msg("Saved successfully");
+msg(type==="cash"&&p.customer_id?"Cash deposit saved to "+p.person_name+"'s ledger.":"Saved successfully");
 }catch(err){msg("Save error: "+err.message,true)}
 finally{btn.disabled=false}
 };
@@ -1041,12 +1317,12 @@ if(type==="party"){
 $("accountType").value=x.party_type||"party";
 $("accountCurrency").value=currency(x);
 $("openingBalance").value=opening(x);
-const hasHistory=[saleList,paymentList,sarSales,sarPayments]
+const hasHistory=[saleList,paymentList,sarSales,sarPayments,purchaseList]
  .some(list=>list.some(row=>row.party_id===x.id));
 $("accountCurrency").disabled=hasHistory;
 const note=$("currencyEditNote");
 note.textContent=hasHistory
- ?"This account has sales or payments, so its currency cannot be changed."
+ ?"Transaction history locks the account currency."
  :"If you change the currency, enter the opening balance in the new currency.";
 note.classList.remove("hidden");
 updateCurrencyForm();
@@ -1069,6 +1345,7 @@ const deleted=check(await db.from(tables[type]).delete().eq("id",id).select("id"
 if(!deleted?.length)throw Error("Delete blocked by database policy");
 }
 await loadAll();
+if(type==="cash")await refreshOpenSheetAfterCash();
 msg("Deleted successfully");
 }catch(err){msg("Delete error: "+err.message,true)}
 }
@@ -1093,7 +1370,11 @@ const p=partyList.find(x=>x.id===$("ledgerParty").value);
 if(!p)return msg("Select a party",true);
 const unit=currency(p);
 const value=unit==="SAR"?roundSar:x=>x;
-csv([["Party",p.name],["Currency",unit],["Date","Details","Debit","Credit","Balance"],...ledgerData.map(x=>[x.date,x.details,value(x.debit),value(x.credit),value(x.balance)])],"party-ledger.csv");
+const rows=[["Party",p.name],["Currency",unit],["Date","Details","Debit","Credit","Balance"],
+ ...ledgerData.map(x=>[x.date,x.details,value(x.debit),value(x.credit),value(x.balance)])];
+if(unit==="BDT"&&p.party_type==="customer")
+ rows.push(["SR Balance",displaySrBalance(customerSrBalance(purchasesFor(p.id),cashDepositsFor(p.id)))]);
+csv(rows,"party-ledger.csv");
 }
 /* Integrated Party / Customer / User management */
 const extraStyle=document.createElement("style");
@@ -1148,7 +1429,7 @@ const bangladeshBanks = [
  "Mutual Trust Bank PLC",
  "National Bank of Pakistan",
  "National Bank PLC",
- "National Credit & Commerce Bank PLC",
+ "National Credit and Commerce Bank PLC",
  "NRB Bank PLC",
  "NRBC Bank PLC",
  "One Bank PLC",
@@ -1166,7 +1447,7 @@ const bangladeshBanks = [
  "Sonali Bank PLC",
  "Southeast Bank PLC",
  "Standard Chartered Bank",
- "Standard Islami Bank PLC",
+ "Standard Bank PLC",
  "State Bank of India",
  "The Hong Kong and Shanghai Banking Corporation. Ltd",
  "The Premier Bank PLC",
@@ -1176,6 +1457,9 @@ const bangladeshBanks = [
  "Uttara Bank PLC",
  "Woori Bank"
 ];
+$("purchaseBank").innerHTML='<option value="">Select a Bank</option>'+
+ bangladeshBanks.map(bank=>`<option value="${esc(bank)}">${esc(bank)}</option>`).join("")+
+ '<option value="other">Other Bank</option>';
 const customerSheet = document.createElement("section");
 customerSheet.id = "customerSheet";
 customerSheet.className = "card hidden";
@@ -1205,7 +1489,7 @@ customerSheet.innerHTML = `
  </form>
  <p id="customerSheetStatus" role="status"></p>
  <div class="tablewrap"><table class="customer-sheet-table">
-  <thead><tr><th scope="col">Payment Method</th><th scope="col">Name / Bank</th><th scope="col">BD</th><th scope="col">Rate</th><th scope="col">SR</th><th scope="col" id="customerSheetAdded">Added</th><th scope="col" id="customerSheetJoma">Deposit</th><th scope="col" id="customerSheetBalance">Balance</th></tr></thead>
+  <thead><tr><th scope="col">Payment Method</th><th scope="col">Name / Bank</th><th scope="col">BD</th><th scope="col">Rate</th><th scope="col">SR</th><th scope="col" id="customerSheetAdded">Debit</th><th scope="col" id="customerSheetJoma">Credit</th><th scope="col" id="customerSheetBalance">Balance</th></tr></thead>
   <tbody id="customerSheetRows"></tbody>
   <tfoot id="customerSheetTotal"></tfoot>
  </table></div>`;
@@ -1251,7 +1535,7 @@ function customerSheetReference(text) {
  return parts ? {method:parts[1],contact:parts[2]} : {method:"",contact:text||""};
 }
 
-function customerSheetDay(account, sales, payments, purchases, date) {
+function customerSheetDay(account, sales, payments, purchases, date, deposits=[]) {
  const isSar=currency(account)==="SAR";
  const transactions=[
   ...sales.map(entry=>({
@@ -1267,11 +1551,17 @@ function customerSheetDay(account, sales, payments, purchases, date) {
    bdt:null,
    rate:null, sar:null, added:0, joma:n(isSar?entry.amount_sar:entry.amount_bdt)
   })),
-  ...purchases.map(entry=>({
-   method:"Riyal Buy", contact:entry.notes||"Settled purchase",
-   date:entry.purchase_date, created:entry.created_at,
-   bdt:entry.total_bdt, rate:entry.rate_bdt, sar:entry.amount_sar, added:0, joma:0
-  }))
+  ...purchases.map(entry=>{
+   const difference=purchaseDifference(entry);
+   const adjustment=purchaseAdjustment(account,entry);
+   const details=["Riyal Buy",entry.bank_name,fmt(purchasePaid(entry))+" BDT paid",
+    purchasePayoutText(difference,entry.rate_bdt),entry.payment_reference,entry.notes];
+   return {method:entry.payment_method||"—",contact:details.filter(Boolean).join(" · "),
+    date:entry.purchase_date,created:entry.created_at,bdt:entry.total_bdt,rate:entry.rate_bdt,
+    sar:entry.amount_sar,added:Math.max(adjustment,0),joma:Math.max(-adjustment,0)};
+  }),
+  ...deposits.map(entry=>({date:entry.entry_date,created:entry.created_at||"",method:"Cash",
+   contact:cashDepositDescription(entry),bdt:null,rate:null,sar:null,added:0,joma:isSar?n(entry.amount_sar):0}))
  ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
 
  let broughtForward=opening(account);
@@ -1295,9 +1585,9 @@ function renderCustomerSheet(){
   $("customerSheetTotal").innerHTML="";
   return;
  }
- const [sales,payments,purchases]=sheet.entries;
+ const [sales,payments,purchases,deposits]=sheet.entries;
  const unit=currency(sheet.account);
- const {broughtForward,rows,totals,balance}=customerSheetDay(sheet.account,sales,payments,purchases??[],date);
+ const {broughtForward,rows,totals,balance}=customerSheetDay(sheet.account,sales,payments,purchases.rows,date,deposits);
  const moneyText=unit==="SAR"?fmtSar:fmt;
  const cell=(value,format)=>value==null||value===0?"":format(value);
  $("customerSheetRows").innerHTML=
@@ -1307,7 +1597,8 @@ function renderCustomerSheet(){
    return `<tr><td class="${methodClass}">${esc(row.method||"—")}</td><td>${esc(row.contact)}</td><td>${cell(row.bdt,fmt)}</td><td>${cell(row.rate,fmtSar)}</td><td>${cell(row.sar,fmtSar)}</td><td>${cell(row.added,moneyText)}</td><td class="sheet-joma">${cell(row.joma,moneyText)}</td><td class="sheet-balance">${moneyText(row.balance)}</td></tr>`;
   }).join("")+(rows.length?"":'<tr><td colspan="8">No transactions on this date.</td></tr>');
  $("customerSheetTotal").innerHTML=
-  `<tr><th scope="row" colspan="2">Daily Total</th><td>${fmt(totals.bdt)}</td><td></td><td>${fmtSar(totals.sar)}</td><td>${moneyText(totals.added)}</td><td>${moneyText(totals.joma)}</td><td>${moneyText(balance)} ${unit}</td></tr>`;
+  `<tr><th scope="row" colspan="2">Daily Total</th><td>${fmt(totals.bdt)}</td><td></td><td>${fmtSar(totals.sar)}</td><td>${moneyText(totals.added)}</td><td>${moneyText(totals.joma)}</td><td>${moneyText(balance)} ${unit}</td></tr>`+
+  (unit==="BDT"?`<tr><th scope="row" colspan="8">${esc(displaySrBalance(customerSrBalance(purchases.rows,deposits,date)))}</th></tr>`:"");
 }
 
 function updateCustomerEntry(){
@@ -1339,9 +1630,16 @@ async function refreshCustomerSheet(sheet){
  const entries=await Promise.all([
   readCustomerSheetTable(salesTable,"sale_date",sheet.account.id),
   readCustomerSheetTable(paymentsTable,"payment_date",sheet.account.id),
-  readPurchases(sheet.account.id)
+  readPurchases(sheet.account.id),
+  readCustomerCashDeposits(sheet.account.id)
  ]);
  if(activeCustomerSheet===sheet){sheet.entries=entries;renderCustomerSheet();}
+}
+
+async function refreshOpenSheetAfterCash(){
+ if(!activeCustomerSheet)return;
+ try{await refreshCustomerSheet(activeCustomerSheet);}
+ catch(error){$("customerSheetStatus").textContent="Reopen the account to refresh its deposits.";}
 }
 
 async function openCustomerSheet(account){
@@ -1351,8 +1649,8 @@ async function openCustomerSheet(account){
  const unit=currency(account);
  $("customerSheetName").textContent=account.name+" · "+unit;
  $("customerSheetDate").value=today();
- $("customerSheetAdded").textContent="Added ("+unit+")";
- $("customerSheetJoma").textContent="Deposit ("+unit+")";
+ $("customerSheetAdded").textContent="Debit ("+unit+")";
+ $("customerSheetJoma").textContent="Credit ("+unit+")";
  $("customerSheetBalance").textContent="Balance ("+unit+")";
  $("customerSheetType").innerHTML=unit==="SAR"
   ?'<option value="conversion">Paid Out (BDT)</option><option value="deposit">Deposit Received (SAR)</option>'
@@ -1512,11 +1810,12 @@ function sarConversionDescription(entry){
  return fmtSar(entry.source_bdt_amount)+" BDT ÷ "+fmtSar(entry.selling_rate)
   +" BDT/SAR = "+fmtSar(sarEntryAmount(entry))+" SAR";
 }
-function buildSarLedger(p,ss,rr,purchases){
+function buildSarLedger(p,ss,rr,purchases,deposits=[]){
  const entries=[
   ...ss.map(x=>({date:x.sale_date,created:x.created_at||"",details:x.source_bdt_amount==null?"SAR sale "+fmtSar(x.sar_amount)+" SAR @ "+fmtSar(x.selling_rate):sarConversionDescription(x),debit:sarEntryAmount(x),credit:0})),
   ...rr.map(x=>({date:x.payment_date,created:x.created_at||"",details:"SAR received "+(x.reference||""),debit:0,credit:n(x.amount_sar)})),
-  ...purchaseLedgerRows(purchases)
+  ...purchaseLedgerRows(p,purchases),
+  ...cashDepositRows(p,deposits)
  ].sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
  let balance=opening(p);
  const rows=[{date:"",details:"Opening Balance SAR",debit:balance,credit:0,balance}];
@@ -1650,7 +1949,7 @@ document.addEventListener("click",async e=>{
  }
 },true);
 
-document.querySelectorAll('input[type="date"]').forEach(x=>x.value=today());
+document.querySelectorAll('input[type="date"]:not(#purchaseMemoDate)').forEach(x=>x.value=today());
 if(db)loginView().catch(err=>{ $("login").classList.remove("hidden"); $("app").classList.add("hidden"); msg("Connection error: "+err.message,true); });
 </script>
 
@@ -1689,7 +1988,8 @@ function prepare(){
  const pays=(unit==='SAR'?sarPayments:paymentList).filter(x=>String(x.party_id)===String(id));
  const tx=[...sales.map(x=>({date:x.sale_date,created:x.created_at||'',description:unit==='SAR'&&x.source_bdt_amount!=null?sarConversionDescription(x):saleDescription(x),debit:unit==='SAR'?sarEntryAmount(x):num(x.total_bdt),credit:0})),
  ...pays.map(x=>({date:x.payment_date,created:x.created_at||'',description:(unit==='SAR'?'SAR Deposit':'Payment Received')+(x.reference?' — '+x.reference:''),debit:0,credit:unit==='SAR'?num(x.amount_sar):num(x.amount_bdt)})),
- ...purchaseLedgerRows(purchasesFor(id)).map(({details,...entry})=>({...entry,description:details}))]
+ ...[...purchaseLedgerRows(p,purchasesFor(id)),...cashDepositRows(p,cashDepositsFor(id))]
+  .map(({details,...entry})=>({...entry,description:details}))]
  .sort((a,b)=>a.date.localeCompare(b.date)||a.created.localeCompare(b.created));
  let openingBalance=opening(p);
  for(const t of tx){if(from&&t.date<from)openingBalance+=t.debit-t.credit;}
@@ -1697,11 +1997,13 @@ function prepare(){
  const rows=[];
  for(const t of tx){if(from&&t.date<from)continue;if(to&&t.date>to)continue;
   balance+=t.debit-t.credit;totalDebit+=t.debit;totalCredit+=t.credit;rows.push({...t,balance});}
- return {p,unit,from,to,openingBalance,totalDebit,totalCredit,closingBalance:balance,rows};
+ const srBalance=unit==="BDT"&&p.party_type==="customer"?displaySrBalance(customerSrBalance(purchasesFor(id),cashDepositsFor(id),to)):"";
+ return {p,unit,from,to,openingBalance,totalDebit,totalCredit,closingBalance:balance,rows,srBalance};
 }
 function csvDownload(d){
  const value=d.unit==='SAR'?roundSar:x=>x;
  const data=[['TAJKIYA ENTERPRISE'],['ACCOUNT STATEMENT'],['Account Holder',d.p.name],['Account ID',d.p.id],['Currency',d.unit],['From',d.from||'Beginning'],['To',d.to||'Latest'],[],['Date','Description','Debit','Credit','Balance'],['','Opening Balance','','',value(d.openingBalance)],...d.rows.map(x=>[x.date,x.description,value(x.debit),value(x.credit),value(x.balance)]),[],['','Total Debit',value(d.totalDebit)],['','Total Credit','',value(d.totalCredit)],['','Closing Balance','', '',value(d.closingBalance)]];
+ if(d.srBalance)data.push(['SR Balance',d.srBalance]);
  const content='\uFEFF'+data.map(row=>row.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='Tajkiya_Statement_'+d.unit+'_'+(d.to||'all')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -1713,6 +2015,7 @@ function pdfHTML(d){
  <style>@page{size:A4;margin:14mm}body{font:11px Arial,sans-serif;color:#17314f;margin:0}header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #c99b37;padding-bottom:14px}header img{width:80px;height:80px;object-fit:contain}h1{font-size:22px;margin:0;color:#102b4e}h2{text-align:center;margin:22px 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:16px 0}.meta div{padding:9px;background:#f0f5fa;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:10px}th,td{padding:7px;border:1px solid #d9e1eb}th{background:#102b4e;color:#fff;text-align:left}tr:nth-child(even){background:#f7f9fc}.right{text-align:right}.summary{width:58%;margin:18px 0 0 auto}.summary td:first-child{font-weight:bold}.closing{background:#fff0c8!important;font-weight:bold}footer{text-align:center;border-top:1px solid #c99b37;margin-top:30px;padding-top:10px;color:#64748b}thead{display:table-header-group}tr{break-inside:avoid}@media print{.print-btn{display:none}}</style></head><body>
  <header><img src="${logoData}" alt="TE logo"><div><h1>TAJKIYA ENTERPRISE</h1><div>Business Ledger & Financial Statement</div></div></header><h2>ACCOUNT STATEMENT</h2>
  <div class="meta"><div><b>Account Holder</b><p>${htmlSafe(d.p.name)}</p></div><div><b>Account ID</b><p>${htmlSafe(d.p.id)}</p></div><div><b>Currency</b><p>${htmlSafe(d.unit)}</p></div><div><b>Statement Period</b><p>${htmlSafe(d.from||'Beginning')} to ${htmlSafe(d.to||'Latest')}</p></div></div>
+ ${d.srBalance?`<p><strong>${htmlSafe(d.srBalance)}</strong></p>`:""}
  <table><thead><tr><th>#</th><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance (${htmlSafe(d.unit)})</th></tr></thead><tbody><tr><td></td><td></td><td><b>Opening Balance</b></td><td></td><td></td><td class="right">${format(d.openingBalance)}</td></tr>${rows}</tbody></table>
  <table class="summary"><tr><td>Total Debit</td><td class="right">${format(d.totalDebit)}</td></tr><tr><td>Total Credit</td><td class="right">${format(d.totalCredit)}</td></tr><tr class="closing"><td>Closing Balance (${htmlSafe(d.unit)})</td><td class="right">${format(d.closingBalance)}</td></tr></table>
  <footer>TAJKIYA ENTERPRISE · Computer Generated Account Statement</footer><p class="print-btn"><button onclick="window.print()">Print / Save as PDF</button></p></body></html>`;
