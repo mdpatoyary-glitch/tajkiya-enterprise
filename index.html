@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,7 +88,13 @@ tbody tr:hover{background:#f7fbfe}
 #cashPeriods [aria-pressed="true"]{background:#173958;color:white}
 #cashSearch{max-width:270px}
 #cashForm{background:#f4f8fb;border:1px solid #dbe7ef;border-radius:12px;padding:14px;margin-top:15px;scroll-margin-top:100px}
+#cashCustomerField{grid-column:1/-1}
 #cashForm h3{margin:0}
+.cash-account-preview{margin:8px 0 0;color:#21595b;font-size:13px}
+.cash-account-link{border:0;background:transparent;color:#126695;padding:0;margin:0;text-align:left;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.cash-account-link:hover,.cash-account-link:focus-visible{background:transparent;color:#084565}
+.cash-account-print{display:none}
+@media print{.cash-account-print{display:inline}}
 #cashPeriodLabel{margin:12px 0 7px}
 #cash .cash-book-table{min-width:0;table-layout:fixed}
 .cash-book-table th:first-child{width:24%}
@@ -103,12 +110,13 @@ tbody tr:hover{background:#f7fbfe}
 .cash-debit{color:var(--cash-out);font-weight:700}
 .cash-book-footer{position:sticky;bottom:0;z-index:2;padding:9px 0 env(safe-area-inset-bottom);background:#fff}
 .cash-book-actions,.cash-book-total{display:grid;gap:8px}
-.cash-book-actions{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:7px}
+.cash-book-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 .cash-book-actions button{margin:0;min-height:44px}
 #cashAddIn{background:var(--cash-in)}
 #cashAddOut{background:var(--cash-out)}
-.cash-book-total{grid-template-columns:repeat(3,minmax(0,1fr));margin:0}
+.cash-book-total{grid-template-columns:repeat(3,minmax(0,1fr));margin:14px 0 0}
 .cash-book-total>div{min-width:0;padding:7px;background:#f0f5f9;border-radius:8px}
+.cash-book-total>div:last-child{background:#e5f1f2}
 .cash-book-total dt{font-size:11px;color:#445c73}
 .cash-book-total dd{margin:2px 0 0;font-size:clamp(13px,2.8vw,21px);font-variant-numeric:tabular-nums;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:600px){#cashSearch{max-width:none}#cashPeriods button{padding:6px 8px}.cash-book-table th,.cash-book-table td{padding:8px 5px;font-size:12px}}
@@ -176,11 +184,29 @@ tbody tr:hover{background:#f7fbfe}
 <div class="stat"><small>Total Sales BDT</small><strong id="totalSales">0</strong></div>
 <div class="stat"><small>Payments BDT</small><strong id="totalPayments">0</strong></div>
 <div class="stat"><small>Net Due BDT</small><strong id="totalDue">0</strong></div>
-<div class="stat"><small>Gross Profit BDT</small><strong id="totalProfit">0</strong></div>
 <div class="stat"><small>Registered Parties</small><strong id="partyCount">0</strong></div>
 </div>
-<p class="muted">Gross Profit = (Selling Rate - Cost Rate) × SAR. Other expenses are not deducted.</p>
 <button onclick="loadAll()">Refresh Data</button>
+<section aria-labelledby="marketDueHeading">
+<h3 id="marketDueHeading">Total Market Due</h3>
+<p class="muted">Amounts receivable from customers and parties.</p>
+<div class="stats">
+<div class="stat"><small>Market Due · BDT</small><strong id="marketDueBdt">—</strong></div>
+<div class="stat"><small>Market Due · SAR</small><strong id="marketDueSar">—</strong></div>
+</div>
+</section>
+<section aria-labelledby="todayCashHeading">
+<h3 id="todayCashHeading">Cash Today <small class="muted" id="dashboardCashDate"></small></h3>
+<div class="stats">
+<div class="stat"><small>Cash In Today</small><strong id="dashboardCashIn">—</strong></div>
+<div class="stat"><small>Cash Out Today</small><strong id="dashboardCashOut">—</strong></div>
+<div class="stat"><small>Cash on Hand · SAR</small><strong id="dashboardCashSar">—</strong></div>
+</div>
+<div class="grid">
+<div><label for="dashboardCashRate">Valuation Rate (BDT per SAR)</label><input id="dashboardCashRate" type="number" min="0.0001" step="0.0001" placeholder="Enter your rate"></div>
+<div class="stat"><small>Cash on Hand · BDT Equivalent</small><strong id="dashboardCashBdt" aria-live="polite">—</strong></div>
+</div>
+</section>
 </section>
 
 <section id="parties" class="card page hidden">
@@ -217,8 +243,7 @@ tbody tr:hover{background:#f7fbfe}
 <div><label>Party</label><select name="party_id" class="partySelect" required></select></div>
 <div><label>Date</label><input name="sale_date" type="date" required></div>
 <div><label>SAR Amount</label><input name="sar_amount" type="number" min=".01" step=".01" required></div>
-<div><label>Selling Rate</label><input name="selling_rate" type="number" min=".0001" step=".0001" required></div>
-<div><label>Cost Rate</label><input name="cost_rate" type="number" min="0" step=".0001" required></div>
+<div><label>Selling Rate (BDT/SAR)</label><input name="selling_rate" type="number" min=".0001" step=".0001" required></div>
 <div><label>Notes</label><input name="notes"></div>
 </div>
 <p id="salePreview" class="muted"></p>
@@ -227,7 +252,7 @@ tbody tr:hover{background:#f7fbfe}
 </form>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Profit</th><th>Action</th></tr></thead>
+<thead><tr><th>Date</th><th>Party</th><th>SAR</th><th>Rate</th><th>Total BDT</th><th>Action</th></tr></thead>
 <tbody id="saleRows"></tbody>
 </table>
 </div>
@@ -244,18 +269,47 @@ tbody tr:hover{background:#f7fbfe}
 <div><label for="purchaseSar">SAR Received</label><input id="purchaseSar" name="amount_sar" type="number" min="0.01" max="999999999999.99" step="0.01" required></div>
 <div><label for="purchaseRate">Buy Rate (BDT/SAR)</label><input id="purchaseRate" name="rate_bdt" type="number" min="0.0001" max="99999999.9999" step="0.0001" required></div>
 <div><label for="purchasePaid">BDT Paid (Actual)</label><input id="purchasePaid" name="paid_bdt" type="number" min="0" max="999999999999999.99" step="0.01" required></div>
-<div><label for="purchaseMethod">Payment Method</label><select id="purchaseMethod" name="payment_method" required><option value="">Select Method</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Shomiti">Shomiti</option></select></div>
-<div id="purchaseBankField" class="hidden"><label for="purchaseBank">Bangladesh Bank Name</label><select id="purchaseBank" required disabled></select></div>
-<div id="purchaseOtherBankField" class="hidden"><label for="purchaseOtherBank">Other Bank Name</label><input id="purchaseOtherBank" maxlength="100" required disabled></div>
+<div><label for="purchaseMethod">Payment Method</label><select id="purchaseMethod" name="payment_method" required><option value="">Select Method</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="bKash">bKash</option></select></div>
 <div><label for="purchaseReference">Recipient / Reference (Optional)</label><input id="purchaseReference" name="payment_reference" maxlength="120"></div>
 <div><label for="purchaseNotes">Notes</label><input id="purchaseNotes" name="notes" maxlength="250"></div>
 </div>
+<fieldset id="purchaseBankField" class="hidden" disabled>
+<legend>Bank Payments</legend>
+<div id="purchaseBankLines"></div>
+<button type="button" class="secondary" id="addPurchaseBank">+ Add Bank</button>
+</fieldset>
 <p id="purchasePreview" aria-live="polite"></p>
 <button type="submit" id="savePurchase">Save Purchase</button>
 <button type="button" class="secondary hidden" id="cancelPurchaseEdit">Cancel Edit</button>
 </fieldset>
 </form>
 <p id="purchaseStatus" role="status"></p>
+<details class="card">
+<summary><strong>Bank Payment Memo / ব্যাংক পেমেন্ট মেমো</strong></summary>
+<p class="muted">Save confirmed bank payments against an earlier Cash In deposit, or print a memo.</p>
+<p id="bankMemoSetup" class="err hidden" role="status"></p>
+<form id="bankMemoForm">
+<div class="grid">
+<div><label for="bankMemoCustomer">Customer</label><select id="bankMemoCustomer" required></select></div>
+<div><label for="bankMemoDate">Memo Date</label><input id="bankMemoDate" type="date" required></div>
+<div><label for="bankMemoNotes">Notes (Optional)</label><input id="bankMemoNotes" maxlength="250"></div>
+</div>
+<div class="grid">
+ <label>Previous Cash In (SAR)<select id="bankMemoDeposit"></select></label>
+ <label>Rate (BDT/SAR)<input id="bankMemoRate" type="number" min="0.0001" step="0.0001" max="99999999.9999"></label>
+</div>
+<div id="bankMemoLines"></div>
+<div class="actions">
+<button type="button" class="secondary" id="addMemoBank">+ Add Bank</button>
+<button type="submit">Print / PDF Bank Memo</button>
+<button type="button" id="saveBankMemo">Save Confirmed Payout</button>
+<button type="button" id="cancelBankMemoEdit" class="secondary hidden">Cancel Edit</button>
+</div>
+<p id="bankMemoTotal" aria-live="polite"></p>
+<p id="bankMemoStatus" role="status"></p>
+</form>
+<div id="savedBankMemos"></div>
+</details>
 <div class="grid no-print">
 <div><label for="purchaseMemoCustomer">Filter by Customer</label><select id="purchaseMemoCustomer"></select></div>
 <div><label for="purchaseMemoDate">Filter by Date</label><input id="purchaseMemoDate" type="date"></div>
@@ -313,7 +367,12 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="cash" class="card page hidden">
-<div class="cash-book-title"><div><h2>Cash Book</h2><span class="muted">SAR</span></div><button type="button" class="secondary no-print" id="cashReportButton" aria-haspopup="dialog">Report</button></div>
+<div class="cash-book-title"><div><h2>ক্যাশ বুক</h2><span class="muted">সৌদি রিয়াল · SAR</span></div><button type="button" class="secondary no-print" id="cashReportButton" aria-haspopup="dialog">রিপোর্ট</button></div>
+<dl class="cash-book-total" aria-label="Cash totals for selected period">
+<div><dt>মোট জমা</dt><dd id="cashIn" class="cash-credit">0</dd></div>
+<div><dt>মোট খরচ</dt><dd id="cashOut" class="cash-debit">0</dd></div>
+<div><dt>ক্যাশ ব্যালেন্স</dt><dd id="cashBalance">0</dd></div>
+</dl>
 <dialog id="cashReportDialog" class="no-print" aria-labelledby="cashReportTitle">
  <div class="cash-report-heading"><h3 id="cashReportTitle">Cash Book Report</h3>
  <form method="dialog"><button type="submit" class="secondary" aria-label="Close report options">Close</button></form></div>
@@ -341,8 +400,8 @@ tbody tr:hover{background:#f7fbfe}
 <h3 id="cashFormTitle">New cash entry</h3>
 <input name="entry_type" type="hidden" value="in">
 <div class="grid">
+<div id="cashCustomerField" class="hidden"><label for="cashCustomer">Customer / কাস্টমার</label><select id="cashCustomer" name="customer_id" disabled></select><p id="cashAccountPreview" class="cash-account-preview" aria-live="polite"></p></div>
 <div><label for="cashEntryDate">Date</label><input id="cashEntryDate" name="entry_date" type="date" required></div>
-<div id="cashCustomerField" class="hidden"><label for="cashCustomer">Customer (Optional)</label><select id="cashCustomer" name="customer_id" disabled></select></div>
 <div id="cashNameField"><label for="cashEntryName">Person / Reference</label><input id="cashEntryName" name="person_name" required></div>
 <div><label for="cashEntryAmount">Amount (SAR)</label><input id="cashEntryAmount" name="amount_sar" type="number" min=".01" step=".01" required></div>
 <div><label for="cashEntryNotes">Notes</label><input id="cashEntryNotes" name="notes"></div>
@@ -359,14 +418,9 @@ tbody tr:hover{background:#f7fbfe}
 </div>
 <div class="cash-book-footer">
 <div class="cash-book-actions no-print">
-<button type="button" id="cashAddIn">+ Cash In</button>
-<button type="button" id="cashAddOut">− Cash Out</button>
+<button type="button" id="cashAddIn">+ Cash In / জমা</button>
+<button type="button" id="cashAddOut">− Cash Out / খরচ</button>
 </div>
-<dl class="cash-book-total" aria-label="Cash totals for selected period">
-<div><dt>Total Cash In</dt><dd id="cashIn" class="cash-credit">0</dd></div>
-<div><dt>Total Cash Out</dt><dd id="cashOut" class="cash-debit">0</dd></div>
-<div><dt>Balance</dt><dd id="cashBalance">0</dd></div>
-</dl>
 </div>
 </section>
 
@@ -405,7 +459,7 @@ const fmt=v=>n(v).toLocaleString("en-US",{maximumFractionDigits:2});
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let user=null,role="",partyList=[],saleList=[],paymentList=[],cashList=[];
-let purchaseList=[];
+let purchaseList=[],dutyPayoutList=[],dutyPayoutsReady=false;
 let editIds={party:null,sale:null,payment:null,cash:null};
 let ledgerData=[];
 let sarSales=[],sarPayments=[];
@@ -478,7 +532,7 @@ $("app").classList.toggle("hidden",!user);
 if(!user){role="";return;}
 const profile=check(await db.from("profiles").select("*").eq("id",user.id).single());
 role=profile.role||"customer";
-$("welcome").textContent=profile.name||user.email;
+$("welcome").textContent=profile.full_name||profile.name||user.email;
 $("roleName").textContent="Role: "+role;
 $("staff").classList.toggle("hidden",!staff());
 $("customerArea").classList.toggle("hidden",staff());
@@ -491,7 +545,6 @@ try{
 const {error}=await db.auth.signInWithPassword({email:$("email").value,password:$("password").value});
 if(error)throw error;
 await loginView();
-msg("Login successful");
 }catch(err){msg(err.message,true)}
 };
 $("logout").onclick=async()=>{await db.auth.signOut();location.reload()};
@@ -509,21 +562,23 @@ async function loadCashEntries(){
  }
 }
 
-async function readPurchases(accountId, legacy=false){
+async function readPurchases(accountId, schema="split"){
  const rows=[];
  const limit=500;
  const baseFields="id,party_id,purchase_date,amount_sar,rate_bdt,total_bdt,notes,created_at";
- const fields=legacy?baseFields:baseFields+",paid_bdt,payment_method,bank_name,payment_reference";
+ const payoutFields=",paid_bdt,payment_method,bank_name,payment_reference";
+ const fields=baseFields+(schema==="legacy"?"":payoutFields)+(schema==="split"?",bank_payments":"");
  for(let offset=0;;offset+=limit){
   let query=db.from("riyal_purchases").select(fields);
   if(accountId)query=query.eq("party_id",accountId);
   const {data,error}=await query.order("purchase_date",{ascending:false})
    .order("id",{ascending:false}).range(offset,offset+limit-1);
   if(error?.code==="42P01"||error?.code==="PGRST205")return {rows:[],ready:false};
-  if(error?.code==="42703"&&!legacy)return readPurchases(accountId,true);
+  if(error?.code==="42703"&&schema!=="legacy")
+   return readPurchases(accountId,schema==="split"?"payout":"legacy");
   if(error)throw error;
   rows.push(...data);
-  if(data.length<limit)return {rows,ready:!legacy};
+  if(data.length<limit)return {rows,ready:schema==="split"};
  }
 }
 
@@ -537,6 +592,7 @@ function payoutDifferenceSr(difference,rate){
  return Math.sign(difference)*roundSar(Math.abs(difference)/n(rate));
 }
 function purchaseAdjustment(account,purchase){
+ if(purchase.dutyPayout)return currency(account)==="SAR"?n(purchase.used_sar):0;
  return currency(account)==="SAR"?payoutDifferenceSr(purchaseDifference(purchase),purchase.rate_bdt):0;
 }
 function purchasePayoutText(difference,rate){
@@ -547,7 +603,7 @@ function purchasePayoutText(difference,rate){
 }
 function customerSrBalance(purchases,deposits,to=""){
  const purchased=purchases.filter(row=>!to||row.purchase_date<=to)
-  .reduce((sum,row)=>sum+payoutDifferenceSr(purchaseDifference(row),row.rate_bdt),0);
+  .reduce((sum,row)=>sum+(row.dutyPayout?n(row.used_sar):payoutDifferenceSr(purchaseDifference(row),row.rate_bdt)),0);
  const received=deposits.filter(row=>!to||row.entry_date<=to).reduce((sum,row)=>sum+n(row.amount_sar),0);
  return roundSar(purchased-received);
 }
@@ -585,9 +641,17 @@ function cashDepositRows(account,deposits){
 }
 
 function purchaseMethod(purchase){
+ if(purchase.bank_payments?.length){
+  return purchase.bank_payments.map(line=>line.bank_name+" · "+fmt(line.amount_bdt)+" BDT"
+   +(line.reference?" · "+line.reference:"")).join(" / ");
+ }
  return [purchase.payment_method,purchase.bank_name].filter(Boolean).join(" · ")||"—";
 }
 function purchaseDescription(purchase){
+ if(purchase.dutyPayout)return [
+  "Bank payout from deposit",purchaseMethod(purchase),
+  fmtSar(purchase.used_sar)+" SAR used",purchase.notes
+ ].filter(Boolean).join(" · ");
  const difference=purchaseDifference(purchase);
  return [
   "Riyal Buy · "+fmt(purchase.amount_sar)+" SAR @ "+fmtBuyRate(purchase.rate_bdt)+" BDT/SAR",
@@ -606,7 +670,39 @@ function purchaseLedgerRows(account,purchases){
 }
 
 function purchasesFor(accountId){
- return purchaseList.filter(entry=>entry.party_id===accountId);
+ return [
+  ...purchaseList.filter(entry=>entry.party_id===accountId),
+  ...dutyPayoutList.filter(entry=>entry.party_id===accountId).map(dutyLedgerEntry)
+ ];
+}
+
+async function readDutyPayouts(accountId){
+ const result=[];
+ const pageSize=500;
+ for(let offset=0;;offset+=pageSize){
+  let query=db.from("duty_bank_payouts").select(
+   "id,deposit_id,party_id,payout_date,rate_bdt,paid_bdt,used_sar,bank_lines,notes,created_at,revision"
+  );
+  if(accountId)query=query.eq("party_id",accountId);
+  const response=await query.order("payout_date",{ascending:false}).order("id")
+   .range(offset,offset+pageSize-1);
+  if(response.error?.code==="42P01"||response.error?.code==="PGRST205"){
+   return {rows:[],ready:false};
+  }
+  const rows=check(response);
+  result.push(...rows);
+  if(rows.length<pageSize)return {rows:result,ready:true};
+ }
+}
+
+function dutyLedgerEntry(row){
+ return {...row,dutyPayout:true,purchase_date:row.payout_date,total_bdt:0,
+  amount_sar:0,payment_method:"Bank",bank_payments:row.bank_lines};
+}
+
+async function readAccountPurchases(accountId){
+ const [purchases,payouts]=await Promise.all([readPurchases(accountId),readDutyPayouts(accountId)]);
+ return {...purchases,rows:[...purchases.rows,...payouts.rows.map(dutyLedgerEntry)]};
 }
 
 function purchaseCashEntries(){
@@ -619,34 +715,79 @@ function purchaseCashEntries(){
 
 async function loadAll(){
 try{
-const [p,s,r,c,ss,sp,purchases]=await Promise.all([
-db.from("parties").select("*").order("name"),
-db.from("party_sales").select("*").order("sale_date",{ascending:false}),
-db.from("party_payments").select("*").order("payment_date",{ascending:false}),
+const [p,s,r,c,ss,sp,purchases,dutyPayouts]=await Promise.all([
+ readLedgerRows("parties","name"),
+ readLedgerRows("party_sales","sale_date"),
+ readLedgerRows("party_payments","payment_date"),
 loadCashEntries(),
-db.from("party_sar_sales").select("*").order("sale_date",{ascending:false}),
-db.from("party_sar_payments").select("*").order("payment_date",{ascending:false}),
-readPurchases()
+ readLedgerRows("party_sar_sales","sale_date"),
+ readLedgerRows("party_sar_payments","payment_date"),
+readPurchases(),readDutyPayouts()
 ]);
-partyList=check(p);saleList=check(s);paymentList=check(r);
-sarSales=check(ss);sarPayments=check(sp);
+partyList=p;saleList=s;paymentList=r;
+sarSales=ss;sarPayments=sp;
 purchaseList=purchases.rows;
+dutyPayoutList=dutyPayouts.rows;
+dutyPayoutsReady=dutyPayouts.ready;
 cashList=[...c,...purchaseCashEntries()].sort((a,b)=>b.entry_date.localeCompare(a.entry_date)
  ||String(b.created_at??"").localeCompare(String(a.created_at??"")));
 renderAll();
 renderPurchases(purchases.ready);
+renderBankMemoDeposits();
 msg("Data updated");
 return true;
 }catch(err){msg("Load error: "+err.message,true);return false;}
 }
+function marketReceivables(accounts){
+ const totals={bdt:0,sar:0};
+ for(const account of accounts){
+  if(currency(account)==="SAR"){
+   totals.sar+=Math.max(0,due(account));
+  }else{
+   totals.bdt+=Math.max(0,due(account));
+   totals.sar+=Math.max(0,customerSrBalance(purchasesFor(account.id),cashDepositsFor(account.id)));
+  }
+ }
+ return totals;
+}
+
+function dashboardCashSummary(entries,day){
+ const {incoming,outgoing}=cashBookView(entries,"daily","",day);
+ const throughToday=cashBookView(entries.filter(row=>row.entry_date<=day),"all","",day);
+ return {incoming,outgoing,onHand:roundSar(throughToday.incoming-throughToday.outgoing)};
+}
+
+let dashboardCashOnHand=null;
+function renderCashEquivalent(){
+ const rate=$("dashboardCashRate");
+ const value=dashboardCashOnHand*rate.valueAsNumber;
+ $("dashboardCashBdt").textContent=dashboardCashOnHand!==null&&rate.validity.valid&&Number.isFinite(value)
+  ?fmt(value)+" BDT":"—";
+}
+$("dashboardCashRate").addEventListener("input",renderCashEquivalent);
+
+function renderDashboardBalances(){
+ const market=marketReceivables(partyList);
+ $("marketDueBdt").textContent=fmt(market.bdt)+" BDT";
+ $("marketDueSar").textContent=fmtSar(market.sar)+" SAR";
+ const day=today();
+ const cash=dashboardCashSummary(cashList,day);
+ $("dashboardCashDate").textContent=cashReportDate(day);
+ $("dashboardCashIn").textContent=fmtSar(cash.incoming)+" SAR";
+ $("dashboardCashOut").textContent=fmtSar(cash.outgoing)+" SAR";
+ $("dashboardCashSar").textContent=fmtSar(cash.onHand)+" SAR";
+ dashboardCashOnHand=cash.onHand;
+ renderCashEquivalent();
+}
+
 function renderAll(){
+renderDashboardBalances();
 const salesTotal=saleList.reduce((a,x)=>a+n(x.total_bdt),0);
 const paidTotal=paymentList.reduce((a,x)=>a+n(x.amount_bdt),0);
 $("totalSar").textContent=fmt(saleList.reduce((a,x)=>a+n(x.sar_amount),0)+sarSales.filter(x=>x.source_bdt_amount==null).reduce((a,x)=>a+n(x.sar_amount),0));
 $("totalSales").textContent=fmt(salesTotal);
 $("totalPayments").textContent=fmt(paidTotal);
 $("totalDue").textContent=fmt(partyList.filter(p=>currency(p)==="BDT").reduce((a,p)=>a+due(p),0));
-$("totalProfit").textContent=fmt(saleList.reduce((a,x)=>a+n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate)),0)+sarSales.filter(x=>x.source_bdt_amount==null).reduce((a,x)=>a+n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate)),0));
 $("partyCount").textContent=partyList.length;
 
 document.querySelectorAll(".partySelect").forEach(el=>{
@@ -656,7 +797,7 @@ if([...el.options].some(o=>o.value===old))el.value=old;
 });
 $("partyRows").innerHTML=partyList.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.phone)}</td><td>${money(opening(p),p)}</td><td>${money(due(p),p)}</td><td>${buttons("party",p.id)}</td></tr>`).join("");
 
-$("saleRows").innerHTML=saleList.map(x=>`<tr><td>${esc(x.sale_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.sar_amount)}</td><td>${fmt(x.selling_rate)}</td><td>${fmt(x.total_bdt)}</td><td>${fmt(n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate)))}</td><td>${buttons("sale",x.id)}</td></tr>`).join("");
+$("saleRows").innerHTML=saleList.map(x=>`<tr><td>${esc(x.sale_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.sar_amount)}</td><td>${fmtBuyRate(x.selling_rate)}</td><td>${fmt(x.total_bdt)}</td><td>${buttons("sale",x.id)}</td></tr>`).join("");
 
 $("paymentRows").innerHTML=paymentList.map(x=>`<tr><td>${esc(x.payment_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.amount_bdt)}</td><td>${esc(x.reference)}</td><td>${buttons("payment",x.id)}</td></tr>`).join("");
 renderCash();
@@ -682,6 +823,17 @@ function purchaseMemoCells(purchase){
   purchasePayoutText(difference,purchase.rate_bdt)];
 }
 
+function purchaseMemoRow(purchase){
+ const cells=purchaseMemoCells(purchase).map(value=>esc(value));
+ if(purchase.bank_payments?.length){
+  const details=purchase.bank_payments.map(line=>
+   esc(line.bank_name)+" · "+esc(fmt(line.amount_bdt))+" BDT"+(line.reference?" · "+esc(line.reference):""));
+  details.push(...[purchase.payment_reference,purchase.notes].filter(Boolean).map(esc));
+  cells[2]=details.join("<br>");
+ }
+ return "<tr>"+cells.map(value=>"<td>"+value+"</td>").join("")+"</tr>";
+}
+
 function renderPurchaseRows(){
  const rows=filteredPurchases();
  $("purchaseRows").innerHTML=rows.map(purchase=>`<tr>
@@ -696,13 +848,16 @@ function renderPurchaseRows(){
 function renderPurchases(available){
  const customers=partyList.filter(p=>p.party_type==="customer");
  const options=customers.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
- for(const [id,placeholder] of [["purchaseCustomer","Select Customer"],["purchaseMemoCustomer","All Customers"]]){
+ for(const [id,placeholder] of [["purchaseCustomer","Select Customer"],["purchaseMemoCustomer","All Customers"],["bankMemoCustomer","Select Customer"]]){
   const select=$(id);
   const selected=select.value;
   select.innerHTML=`<option value="">${placeholder}</option>`+options;
   if(customers.some(p=>p.id===selected))select.value=selected;
  }
  $("purchaseFields").disabled=!available||savingPurchase;
+ $("bankMemoSetup").classList.toggle("hidden",dutyPayoutsReady);
+ $("bankMemoSetup").textContent=dutyPayoutsReady?"":"আগের জমা থেকে পেআউট সেভ করতে Supabase-এ আপডেট করা riyal_buy.sql চালান।";
+ $("saveBankMemo").disabled=!dutyPayoutsReady||savingBankPayout;
  purchaseStatus.textContent=available?(customers.length?"":"Add a customer from the Customers menu first."):
   "Run the updated riyal_buy.sql in Supabase to enable this form.";
  renderPurchaseRows();
@@ -748,7 +903,7 @@ function printPurchaseMemo(rows){
  <p>${esc(customer)} · ${esc(from===to?from:from+" to "+to)}${ordered.length===1?" · Ref "+esc(ordered[0].id):""}</p></header>
  <div class="tablewrap"><table><thead><tr><th>Date</th><th>Customer</th><th>Method / Bank / Reference</th><th>SAR Received</th>
  <th>Rate (BDT/SAR)</th><th>Value (BDT)</th><th>Paid (BDT)</th><th>Payment Balance</th></tr></thead>
- <tbody>${ordered.map(row=>"<tr>"+purchaseMemoCells(row).map(value=>`<td>${esc(value)}</td>`).join("")+"</tr>").join("")}</tbody></table></div>
+ <tbody>${ordered.map(purchaseMemoRow).join("")}</tbody></table></div>
  <table class="summary" aria-label="Memo totals"><tbody>${totals.map(([label,value])=>
   `<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`).join("")}</tbody></table>
  </body></html>`);
@@ -803,13 +958,95 @@ async function deletePurchase(purchase){
  }
 }
 
+function formatBankCents(cents){
+ return (cents/100n).toString()+"."+String(cents%100n).padStart(2,"0");
+}
+
+function addBankLine(host,line={}){
+ if(host.children.length>=50)return;
+ const field=document.createElement("fieldset");
+ field.innerHTML=`<legend>Bank Payment</legend><div class="grid">
+ <label>Bank<select data-bank required></select></label>
+ <label data-other-label class="hidden">Other Bank Name<input data-other-bank maxlength="100" required disabled></label>
+ <label>Amount (BDT)<input data-amount type="number" min="${host.id==="bankMemoLines"?"0.01":"0"}"
+  max="999999999999999.99" step="0.01" required></label>
+ <label>Recipient / Reference<input data-reference maxlength="120"></label>
+ </div><button type="button" class="secondary" data-remove-bank>Remove Bank</button>`;
+ const bank=field.querySelector("[data-bank]");
+ bank.innerHTML=bankOptions;
+ bank.value=bangladeshBanks.includes(line.bank_name)?line.bank_name:line.bank_name?"other":"";
+ field.querySelector("[data-other-bank]").value=bank.value==="other"?line.bank_name:"";
+ field.querySelector("[data-amount]").value=line.amount_bdt??"";
+ field.querySelector("[data-reference]").value=line.reference??"";
+ host.appendChild(field);
+ syncBankLineFields(host);
+}
+
+function syncBankLineFields(host){
+ for(const row of host.children){
+  const other=row.querySelector("[data-bank]").value==="other";
+  row.querySelector("[data-other-label]").classList.toggle("hidden",!other);
+  row.querySelector("[data-other-bank]").disabled=!other;
+  row.querySelector("[data-remove-bank]").disabled=host.children.length===1;
+ }
+ $(host.id==="bankMemoLines"?"addMemoBank":"addPurchaseBank").disabled=host.children.length>=50;
+}
+
+function readBankLines(host){
+ let cents=0n;
+ const lines=[];
+ for(const row of host.children){
+  const selected=row.querySelector("[data-bank]").value;
+  const bank=selected==="other"?row.querySelector("[data-other-bank]").value.trim():selected;
+  const amount=row.querySelector("[data-amount]");
+  if(!bank||!amount.validity.valid)return null;
+  const match=/^([0-9]{1,15})(?:[.]([0-9]{1,2}))?$/.exec(amount.value);
+  if(!match)return null;
+  const fixed=match[1]+"."+(match[2]||"").padEnd(2,"0");
+  cents+=BigInt(fixed.replace(".",""));
+  lines.push({bank_name:bank,amount_bdt:fixed,reference:row.querySelector("[data-reference]").value.trim()});
+ }
+ return lines.length?{lines,cents}:null;
+}
+
 function updatePurchaseBankFields(){
  const isBank=$("purchaseMethod").value==="Bank";
- const isOther=isBank&&$("purchaseBank").value==="other";
- $("purchaseBankField").classList.toggle("hidden",!isBank);
- $("purchaseBank").disabled=!isBank;
- $("purchaseOtherBankField").classList.toggle("hidden",!isOther);
- $("purchaseOtherBank").disabled=!isOther;
+ const fields=$("purchaseBankField");
+ const host=$("purchaseBankLines");
+ const paid=$("purchasePaid");
+ fields.classList.toggle("hidden",!isBank);
+ fields.disabled=!isBank;
+ if(paid.readOnly!==isBank)paid.value="";
+ paid.readOnly=isBank;
+ if(!isBank)return;
+ if(!host.children.length)addBankLine(host);
+ syncBankLineFields(host);
+ const payment=readBankLines(host);
+ paid.value=payment?formatBankCents(payment.cents):"";
+}
+
+function printStandaloneBankMemo(customer,date,notes,payment){
+ const preview=window.open("","_blank");
+ if(!preview)throw Error("Allow pop-ups for this site to open the bank memo.");
+ const rows=payment.lines.map(line=>`<tr><td>${esc(line.bank_name)}</td>
+ <td>${esc(line.reference)}</td><td class="money">${fmt(line.amount_bdt)}</td></tr>`).join("");
+ preview.document.open();
+ preview.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1"><title>Tajkiya Enterprise · Bank Payment Memo</title>
+ <style>@page{size:A4;margin:14mm}body{font:14px system-ui,sans-serif;color:#18314d;margin:24px auto;padding:0 12px;max-width:730px}
+ h1{margin-bottom:4px} h2{margin-top:0;border-bottom:2px solid #b8852d;padding-bottom:10px}
+ table{border-collapse:collapse;width:100%;table-layout:fixed} th,td{border:1px solid #c2cbd4;padding:8px;text-align:left;overflow-wrap:anywhere}
+ th,tfoot{background:#edf3f7}.money{text-align:right}tr{break-inside:avoid}thead{display:table-header-group}
+ @media print{button{display:none}body{margin:0;padding:0}}</style></head><body>
+ <button type="button" onclick="window.print()">Print / Save as PDF</button>
+ <h1>Tajkiya Enterprise</h1><h2>Bank Payment Memo</h2>
+ <p><strong>Customer</strong> ${esc(customer)} · <strong>Date</strong> ${esc(date)}</p>
+ <table><thead><tr><th>Bank</th><th>Recipient / Reference</th><th class="money">Amount (BDT)</th></tr></thead>
+ <tbody>${rows}</tbody><tfoot><tr><th colspan="2">Total BDT</th><td class="money">${fmt(formatBankCents(payment.cents))}</td></tr></tfoot></table>
+ ${notes?`<p>${esc(notes)}</p>`:""}
+ </body></html>`);
+ preview.document.close();
+ preview.focus();
 }
 
 function purchaseValueCents(){
@@ -832,7 +1069,7 @@ function previewPurchase(){
   return (abs/100n).toLocaleString("en-US")+"."+String(abs%100n).padStart(2,"0")+" BDT";
  };
  preview.textContent="Purchase Value: "+amountText(value);
- if(!$("purchasePaid").validity.valid)return;
+ if(!$("purchasePaid").validity.valid||!Number.isFinite($("purchasePaid").valueAsNumber))return;
  const paid=BigInt($("purchasePaid").valueAsNumber.toFixed(2).replace(".",""));
  const difference=paid-value;
  preview.textContent+=" · "+purchasePayoutText(Number(difference)/100,$("purchaseRate").valueAsNumber);
@@ -850,16 +1087,18 @@ function editPurchasePayment(row){
  editingPurchase=row;
  for(const name of purchaseDetails)purchaseForm.elements[name].value=row[name];
  for(const name of ["payment_method","payment_reference","notes"])purchaseForm.elements[name].value=row[name]??"";
- purchaseForm.elements.paid_bdt.value=purchasePaid(row);
- const bank=row.bank_name||"";
- $("purchaseBank").value=bangladeshBanks.includes(bank)?bank:bank?"other":"";
- $("purchaseOtherBank").value=$("purchaseBank").value==="other"?bank:"";
+ const host=$("purchaseBankLines");
+ host.replaceChildren();
+ const lines=row.bank_payments??(row.bank_name?[{bank_name:row.bank_name,amount_bdt:purchasePaid(row),reference:row.payment_reference}]:[]);
+ for(const line of lines)addBankLine(host,line);
  for(const name of purchaseDetails)purchaseForm.elements[name].disabled=true;
  $("purchaseTitle").textContent="Edit Purchase Payment";
  $("savePurchase").textContent="Update Payment";
  $("cancelPurchaseEdit").classList.remove("hidden");
- purchaseStatus.textContent="";
+ purchaseStatus.textContent=row.payment_method==="Shomiti"
+  ?"এই পুরোনো পেমেন্টটি এডিট করতে Cash, Bank বা bKash বেছে নিন।":"";
  updatePurchaseBankFields();
+ if(row.payment_method!=="Bank")purchaseForm.elements.paid_bdt.value=purchasePaid(row);
  previewPurchase();
  purchaseForm.scrollIntoView({block:"start"});
  $("purchasePaid").focus();
@@ -873,8 +1112,7 @@ function finishPurchaseEdit(){
  $("cancelPurchaseEdit").classList.add("hidden");
  for(const name of ["amount_sar","rate_bdt","paid_bdt","payment_method","payment_reference","notes"])
   purchaseForm.elements[name].value="";
- $("purchaseBank").value="";
- $("purchaseOtherBank").value="";
+ $("purchaseBankLines").replaceChildren();
  updatePurchaseBankFields();
  $("purchasePreview").textContent="";
 }
@@ -889,6 +1127,10 @@ purchaseForm.addEventListener("submit",async event=>{
  const entry=formData(purchaseForm);
  const editing=editingPurchase;
  if(editing&&!admin())return;
+ if(!["Cash","Bank","bKash"].includes(entry.payment_method)){
+  purchaseStatus.textContent="Select Cash, Bank or bKash.";
+  return;
+ }
  if(editing)entry.party_id=editing.party_id;
  if(!partyList.some(p=>p.id===entry.party_id&&p.party_type==="customer")){
   purchaseStatus.textContent="Select a customer.";
@@ -900,12 +1142,21 @@ purchaseForm.addEventListener("submit",async event=>{
  }
  entry.notes=entry.notes.trim();
  entry.payment_reference=entry.payment_reference.trim()||null;
- const bank=$("purchaseBank").value;
- entry.bank_name=entry.payment_method==="Bank"?
-  (bank==="other"?$("purchaseOtherBank").value.trim():bank):null;
- if(entry.payment_method==="Bank"&&!entry.bank_name){
-  purchaseStatus.textContent="Enter the bank name.";
+ if(entry.payment_method==="bKash"&&!entry.payment_reference){
+  purchaseStatus.textContent="Enter the bKash transaction reference.";
   return;
+ }
+ entry.bank_name=null;
+ entry.bank_payments=null;
+ if(entry.payment_method==="Bank"){
+  const payment=readBankLines($("purchaseBankLines"));
+  if(!payment){
+   purchaseStatus.textContent="Complete each bank name and BDT amount.";
+   return;
+  }
+  entry.bank_payments=payment.lines;
+  entry.bank_name=payment.lines[0].bank_name;
+  entry.paid_bdt=formatBankCents(payment.cents);
  }
  const key=JSON.stringify(entry);
  const id=editing?.id??(previousPurchase?.key===key?previousPurchase.id:crypto.randomUUID());
@@ -918,7 +1169,8 @@ purchaseForm.addEventListener("submit",async event=>{
    const {party_id,...payment}=entry;
    let update=db.from("riyal_purchases").update(payment).eq("id",id);
    for(const name of Object.keys(payment))
-    update=editing[name]==null?update.is(name,null):update.eq(name,editing[name]);
+    update=editing[name]==null?update.is(name,null):
+     update.eq(name,name==="bank_payments"?JSON.stringify(editing[name]):editing[name]);
    const changed=check(await update.select("id").maybeSingle());
    if(!changed)throw Error("The payment changed or access was denied. Reload and reopen the payment.");
   }else{
@@ -982,10 +1234,11 @@ function renderCash(){
  const {rows,incoming,outgoing}=loadCashBookView();
  const customerSelect=$("cashCustomer");
  const selectedCustomer=customerSelect.value;
- customerSelect.innerHTML='<option value="">No linked customer</option>'+partyList
+ customerSelect.innerHTML='<option value="">সাধারণ ক্যাশ জমা</option>'+partyList
   .filter(row=>row.party_type==="customer"||row.id===selectedCustomer).map(row=>
    `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join("");
  customerSelect.value=selectedCustomer;
+ renderCashAccountPreview();
  const label=$("cashPeriods").querySelector('[aria-pressed="true"]').textContent;
  $("cashPeriodLabel").textContent=label+" · "+rows.length+" entries";
  $("cashIn").textContent=fmt(incoming);
@@ -997,7 +1250,10 @@ function renderCash(){
   const savedDate=new Date(row.created_at||"");
   const savedTime=Number.isFinite(savedDate.getTime())?cashTimeFormat.format(savedDate):"";
   const actions=admin()&&!row.linkedPurchase?`<details><summary>Manage</summary>${buttons("cash",row.id)}</details>`:"";
-  return `<tr><td><time datetime="${esc(row.entry_date)}">${esc(dateText)}</time>${savedTime?`<small title="Recorded time">${esc(savedTime)}</small>`:""}</td><td><strong>${esc(row.person_name)}</strong><small>${esc(row.notes)}</small>${actions}</td><td class="cash-credit">${row.entry_type==="in"?fmt(row.amount_sar):""}</td><td class="cash-debit">${row.entry_type==="out"?fmt(row.amount_sar):""}</td></tr>`;
+  const name=row.customer_id&&partyList.some(account=>account.id===row.customer_id)
+   ?`<button type="button" class="cash-account-link no-print" data-cash-ledger="${esc(row.customer_id)}">${esc(row.person_name)}</button><strong class="cash-account-print">${esc(row.person_name)}</strong>`
+   :`<strong>${esc(row.person_name)}</strong>`;
+  return `<tr><td><time datetime="${esc(row.entry_date)}">${esc(dateText)}</time>${savedTime?`<small title="Recorded time">${esc(savedTime)}</small>`:""}</td><td>${name}<small>${esc(row.notes)}</small>${actions}</td><td class="cash-credit">${row.entry_type==="in"?fmt(row.amount_sar):""}</td><td class="cash-debit">${row.entry_type==="out"?fmt(row.amount_sar):""}</td></tr>`;
  }).join("")||'<tr><td colspan="4">No matching cash entries.</td></tr>';
 }
 
@@ -1009,8 +1265,33 @@ function updateCashCustomerFields(kind){
  $("cashCustomerField").classList.toggle("hidden",!isIncoming);
  $("cashNameField").classList.toggle("hidden",linked);
  $("cashEntryName").disabled=linked;
+ renderCashAccountPreview();
 }
 $("cashCustomer").onchange=()=>updateCashCustomerFields("in");
+$("cashEntryAmount").addEventListener("input",renderCashAccountPreview);
+$("cashRows").addEventListener("click",event=>{
+ const link=event.target.closest("[data-cash-ledger]");
+ if(!link)return;
+ $("ledgerParty").value=link.dataset.cashLedger;
+ showPage("ledger");
+ $("ledger").scrollIntoView({behavior:"smooth",block:"start"});
+});
+
+function renderCashAccountPreview(){
+ const customer=$("cashCustomer");
+ const target=$("cashAccountPreview");
+ const account=customer.disabled?null:partyList.find(row=>row.id===customer.value);
+ if(!account){
+  target.textContent=customer.disabled?"":"কাস্টমার বেছে নিলে জমা সরাসরি তার SAR লেজারে যাবে।";
+  return;
+ }
+ const balance=currency(account)==="SAR"?due(account):customerSrBalance(purchasesFor(account.id),cashDepositsFor(account.id));
+ const amount=$("cashEntryAmount").valueAsNumber;
+ const oldDeposit=cashDepositsFor(account.id).find(row=>String(row.id)===String(editIds.cash));
+ target.textContent="বর্তমান SAR ব্যালেন্স: "+fmtSar(balance)+" SAR"+(
+  Number.isFinite(amount)&&amount>0?" · জমার পর: "+fmtSar(balance+n(oldDeposit?.amount_sar)-amount)+" SAR":""
+ );
+}
 
 function openCashForm(kind,editing=false){
  const form=$("cashForm");
@@ -1227,17 +1508,17 @@ async function loadCustomer(id){
 if(!id)throw Error("No party linked to customer");
 const [p,s,r,ssar,psar,purchaseResult,deposits]=await Promise.all([
  db.from("parties").select("*").eq("id",id).single(),
- db.from("party_sales").select("*").eq("party_id",id),
- db.from("party_payments").select("*").eq("party_id",id),
- db.from("party_sar_sales").select("*").eq("party_id",id),
- db.from("party_sar_payments").select("*").eq("party_id",id),
- readPurchases(id),readCustomerCashDeposits(id)
+ readLedgerRows("party_sales","sale_date",id),
+ readLedgerRows("party_payments","payment_date",id),
+ readLedgerRows("party_sar_sales","sale_date",id),
+ readLedgerRows("party_sar_payments","payment_date",id),
+ readAccountPurchases(id),readCustomerCashDeposits(id)
 ]);
-const party=check(p),ss=check(s),rr=check(r),purchases=purchaseResult.rows;
+const party=check(p),ss=s,rr=r,purchases=purchaseResult.rows;
 renderSrBalance("customerSrBox","customerSr",party,purchases,deposits);
 const sold=ss.reduce((a,x)=>a+n(x.total_bdt),0);
 if(currency(party)==="SAR"){
- const sales=check(ssar),payments=check(psar);
+ const sales=ssar,payments=psar;
  const soldSar=sales.reduce((a,x)=>a+sarEntryAmount(x),0);
  const paidSar=payments.reduce((a,x)=>a+n(x.amount_sar),0)+deposits.reduce((a,x)=>a+n(x.amount_sar),0);
  $("customerPartyName").textContent=party.name+" (SAR)";
@@ -1259,15 +1540,15 @@ $("customerRows").innerHTML=ledgerHTML(buildLedger(party,ss,rr,purchases,deposit
 
 function salePreview(){
 const f=$("saleForm");
-const sar=n(f.elements.sar_amount.value),rate=n(f.elements.selling_rate.value),cost=n(f.elements.cost_rate.value);
-$("salePreview").textContent="Total: "+fmt(sar*rate)+" BDT | Gross Profit: "+fmt(sar*(rate-cost))+" BDT";
+const sar=n(f.elements.sar_amount.value),rate=n(f.elements.selling_rate.value);
+$("salePreview").textContent="Total: "+fmt(sar*rate)+" BDT";
 }
-["sar_amount","selling_rate","cost_rate"].forEach(k=>$("saleForm").elements[k].addEventListener("input",salePreview));
+["sar_amount","selling_rate"].forEach(k=>$("saleForm").elements[k].addEventListener("input",salePreview));
 
 function payloadFor(type){
 const f=$(forms[type]),v=formData(f);
 if(type==="party")return {name:v.name.trim(),phone:v.phone||"",address:v.address||"",account_currency:v.account_currency,opening_due_bdt:v.account_currency==="BDT"?n(v.opening_balance):0,opening_balance_sar:v.account_currency==="SAR"?n(v.opening_balance):0,party_type:v.party_type||"party"};
-if(type==="sale")return {party_id:v.party_id,sale_date:v.sale_date,sar_amount:n(v.sar_amount),selling_rate:n(v.selling_rate),cost_rate:n(v.cost_rate),notes:v.notes||""};
+if(type==="sale")return {party_id:v.party_id,sale_date:v.sale_date,sar_amount:n(v.sar_amount),selling_rate:n(v.selling_rate),notes:v.notes||""};
 if(type==="payment")return {party_id:v.party_id,payment_date:v.payment_date,amount_bdt:n(v.amount_bdt),reference:v.reference||"",notes:v.notes||""};
 if(type==="cash"){
  const customer=v.customer_id?partyList.find(account=>account.id===v.customer_id&&account.party_type==="customer"):null;
@@ -1282,7 +1563,7 @@ function validate(type,p){
 if(type==="party"&&!p.name)throw Error("Enter a name");
 if(type==="party"&&!Number.isFinite(n(p.opening_due_bdt)+n(p.opening_balance_sar)))throw Error("Invalid opening balance");
 if(type==="party"&&(!["SAR","BDT"].includes(p.account_currency)||n(p.opening_due_bdt)<0||n(p.opening_balance_sar)<0))throw Error("Invalid account currency or opening balance");
-if(type==="sale"&&(p.sar_amount<=0||p.selling_rate<=0||p.cost_rate<0))throw Error("Invalid sale amount or rate");
+if(type==="sale"&&(!Number.isFinite(p.sar_amount)||!Number.isFinite(p.selling_rate)||p.sar_amount<=0||p.selling_rate<=0))throw Error("Invalid sale amount or rate");
 if(type==="payment"&&p.amount_bdt<=0)throw Error("Invalid payment");
 if(type==="cash"&&(!p.person_name||!Number.isFinite(p.amount_sar)||p.amount_sar<=0||!["in","out"].includes(p.entry_type)))throw Error("Enter a name and valid cash amount");
 }
@@ -1319,22 +1600,23 @@ const updated=check(await update.select("id"));
 if(!updated?.length)throw Error("Update denied or account changed. Refresh and try again.");
 }else{
 p.created_by=user.id;
+if(type==="sale")p.cost_rate=null;
 check(await db.from(tables[type]).insert(p));
 }
 resetForm(type);
-await loadAll();
-if(type==="cash")await refreshOpenSheetAfterCash();
+const refreshed=await loadAll();
+if(type==="cash"||type==="payment"||type==="sale")await refreshOpenSheetAfterCash();
 if(type==="party")showPage(p.party_type==="customer"?"customers":"parties");
-msg(type==="cash"&&p.customer_id?"Cash deposit saved to "+p.person_name+"'s ledger.":"Saved successfully");
+if(refreshed)msg(type==="cash"&&p.customer_id?"Cash deposit saved to "+p.person_name+"'s ledger.":"Saved successfully");
 }catch(err){msg("Save error: "+err.message,true)}
 finally{btn.disabled=false}
 };
 });
 
-function editRecord(type,id){
+function editRecord(type,id,entry){
 if(!admin())return msg("Admin only",true);
 const items={party:partyList,sale:saleList,payment:paymentList,cash:cashList};
-const x=items[type].find(z=>String(z.id)===String(id));
+const x=entry||items[type].find(z=>String(z.id)===String(id));
 if(!x)return;
 const f=$(forms[type]);
 if(type==="party"){
@@ -1354,7 +1636,7 @@ $("accountType").value=x.party_type||"party";
 $("accountCurrency").value=currency(x);
 $("openingBalance").value=opening(x);
 const hasHistory=[saleList,paymentList,sarSales,sarPayments,purchaseList]
- .some(list=>list.some(row=>row.party_id===x.id));
+ .some(list=>list.some(row=>row.party_id===x.id))||cashDepositsFor(x.id).length>0;
 $("accountCurrency").disabled=hasHistory;
 const note=$("currencyEditNote");
 note.textContent=hasHistory
@@ -1380,9 +1662,9 @@ if(result.data===false)throw Error("Party cannot be deleted while linked records
 const deleted=check(await db.from(tables[type]).delete().eq("id",id).select("id"));
 if(!deleted?.length)throw Error("Delete blocked by database policy");
 }
-await loadAll();
-if(type==="cash")await refreshOpenSheetAfterCash();
-msg("Deleted successfully");
+ const refreshed=await loadAll();
+ if(type!=="party")await refreshOpenSheetAfterCash();
+ if(refreshed)msg("Deleted successfully");
 }catch(err){msg("Delete error: "+err.message,true)}
 }
 document.addEventListener("click",e=>{
@@ -1424,7 +1706,6 @@ document.head.appendChild(extraStyle);
 const accountTypeWrap=document.createElement("div");
 accountTypeWrap.innerHTML='<label for="accountType">Account Type</label><select name="party_type" id="accountType"><option value="party">Party</option><option value="customer">Customer</option></select>';
 $("partyForm").querySelector(".grid").prepend(accountTypeWrap);
-const userNav=document.createElement("button");userNav.dataset.page="users";userNav.textContent="Employee / Login IDs";$("nav").appendChild(userNav);
 const customerSection=document.createElement("section");customerSection.id="customers";customerSection.className="card page hidden";
 customerSection.innerHTML=`<h2>Customer Management</h2><p class="muted">Customer ID is the database account ID, not the login ID.</p><button type="button" id="addCustomer">+ Add Customer</button><div id="customerFormHost"></div><div class="tablewrap"><table><thead><tr><th>Name</th><th>Customer ID</th><th>Phone</th><th>Current Due</th><th>Action</th></tr></thead><tbody id="customerAccountRows"></tbody></table></div>`;
 $("staff").appendChild(customerSection);
@@ -1493,9 +1774,169 @@ const bangladeshBanks = [
  "Uttara Bank PLC",
  "Woori Bank"
 ];
-$("purchaseBank").innerHTML='<option value="">Select a Bank</option>'+
+const bankOptions='<option value="">Select a Bank</option>'+
  bangladeshBanks.map(bank=>`<option value="${esc(bank)}">${esc(bank)}</option>`).join("")+
  '<option value="other">Other Bank</option>';
+const purchaseBankLines=$("purchaseBankLines");
+const bankMemoLines=$("bankMemoLines");
+function updateBankMemoTotal(){
+ syncBankLineFields(bankMemoLines);
+ const payment=readBankLines(bankMemoLines);
+ $("bankMemoTotal").textContent=payment?"Total: "+fmt(formatBankCents(payment.cents))+" BDT":"";
+}
+$("addPurchaseBank").onclick=()=>{addBankLine(purchaseBankLines);updatePurchaseBankFields();previewPurchase();};
+$("addMemoBank").onclick=()=>{addBankLine(bankMemoLines);updateBankMemoTotal();};
+for(const host of [purchaseBankLines,bankMemoLines]){
+ host.onclick=event=>{
+  const button=event.target.closest("[data-remove-bank]");
+  if(!button||host.children.length<=1)return;
+  button.closest("fieldset").remove();
+  if(host===purchaseBankLines){updatePurchaseBankFields();previewPurchase();}
+  else updateBankMemoTotal();
+ };
+}
+$("bankMemoForm").addEventListener("input",updateBankMemoTotal);
+$("bankMemoForm").addEventListener("submit",event=>{
+ event.preventDefault();
+ const customer=partyList.find(row=>row.id===$("bankMemoCustomer").value&&row.party_type==="customer");
+ const payment=readBankLines(bankMemoLines);
+ if(!customer||!payment){
+  $("bankMemoStatus").textContent="Select a customer and complete each bank name and BDT amount.";
+  return;
+ }
+ try{
+  printStandaloneBankMemo(customer.name,$("bankMemoDate").value,$("bankMemoNotes").value.trim(),payment);
+  $("bankMemoStatus").textContent="";
+ }catch(error){$("bankMemoStatus").textContent=error.message;}
+});
+addBankLine(bankMemoLines);
+let editingBankPayout=null;
+let pendingBankPayout=null;
+let savingBankPayout=false;
+
+function renderBankMemoDeposits(){
+ const customerId=$("bankMemoCustomer").value;
+ const select=$("bankMemoDeposit");
+ const old=select.value;
+ const deposits=cashDepositsFor(customerId);
+ select.replaceChildren(new Option("Print only / select a deposit",""));
+ for(const deposit of deposits){
+  const committed=dutyPayoutList.filter(row=>row.deposit_id===String(deposit.id))
+   .reduce((sum,row)=>sum+n(row.used_sar),0);
+  const free=roundSar(n(deposit.amount_sar)-committed);
+  select.add(new Option(deposit.entry_date+" · "+fmtSar(free)+" SAR unused",String(deposit.id)));
+ }
+ if(deposits.some(entry=>String(entry.id)===old))select.value=old;
+
+ const host=$("savedBankMemos");
+ host.replaceChildren();
+ for(const row of dutyPayoutList.filter(entry=>entry.party_id===customerId)){
+  const line=document.createElement("p");
+  line.append(row.payout_date+" · "+fmt(row.paid_bdt)+" BDT · "+fmtSar(row.used_sar)+" SAR ");
+  const print=document.createElement("button");
+  print.type="button";
+  print.textContent="Print saved memo";
+  print.onclick=()=>{
+   try{
+    const cents=row.bank_lines.reduce((sum,bank)=>{
+     const [whole,fraction=""]=String(bank.amount_bdt).split(".");
+     return sum+BigInt(whole+fraction.padEnd(2,"0"));
+    },0n);
+    printStandaloneBankMemo(partyName(row.party_id),row.payout_date,row.notes,{lines:row.bank_lines,cents});
+   }catch(error){$("bankMemoStatus").textContent=error.message;}
+  };
+  line.append(print);
+  if(admin()){
+   const edit=document.createElement("button");
+   edit.type="button";
+   edit.textContent="Edit payout";
+   edit.onclick=()=>openBankPayoutEdit(row);
+   line.append(edit);
+  }
+  host.append(line);
+ }
+}
+
+function openBankPayoutEdit(row){
+ if(savingBankPayout)return;
+ editingBankPayout=row;
+ $("bankMemoCustomer").value=row.party_id;
+ renderBankMemoDeposits();
+ $("bankMemoDeposit").value=row.deposit_id;
+ $("bankMemoDate").value=row.payout_date;
+ $("bankMemoRate").value=row.rate_bdt;
+ $("bankMemoNotes").value=row.notes;
+ bankMemoLines.replaceChildren();
+ for(const bank of row.bank_lines)addBankLine(bankMemoLines,bank);
+ $("bankMemoCustomer").disabled=true;
+ $("bankMemoDeposit").disabled=true;
+ $("saveBankMemo").textContent="Update Confirmed Payout";
+ $("cancelBankMemoEdit").classList.remove("hidden");
+ $("bankMemoStatus").textContent="";
+ updateBankMemoTotal();
+}
+
+function resetBankPayoutDraft(){
+ editingBankPayout=null;
+ pendingBankPayout=null;
+ $("bankMemoCustomer").disabled=false;
+ $("bankMemoDeposit").disabled=false;
+ $("bankMemoDate").value=today();
+ $("bankMemoRate").value="";
+ $("bankMemoNotes").value="";
+ bankMemoLines.replaceChildren();
+ addBankLine(bankMemoLines);
+ $("saveBankMemo").textContent="Save Confirmed Payout";
+ $("cancelBankMemoEdit").classList.add("hidden");
+ updateBankMemoTotal();
+}
+
+$("bankMemoCustomer").addEventListener("change",renderBankMemoDeposits);
+$("cancelBankMemoEdit").onclick=()=>{
+ if(!savingBankPayout){resetBankPayoutDraft();$("bankMemoStatus").textContent="";}
+};
+$("saveBankMemo").onclick=async()=>{
+ if(!staff()||!dutyPayoutsReady||savingBankPayout)return;
+ const form=$("bankMemoForm");
+ const status=$("bankMemoStatus");
+ if(!form.reportValidity())return;
+ const payment=readBankLines(bankMemoLines);
+ const depositId=$("bankMemoDeposit").value;
+ const rate=$("bankMemoRate").value;
+ if(!payment||!depositId||!rate){
+  status.textContent="Select a Cash In deposit and enter a rate and bank amounts.";
+  return;
+ }
+ const payload={
+  p_deposit_id:depositId,p_party_id:$("bankMemoCustomer").value,
+  p_date:$("bankMemoDate").value,p_rate:rate,p_lines:payment.lines,
+  p_notes:$("bankMemoNotes").value.trim(),p_revision:editingBankPayout?.revision??null
+ };
+ const key=JSON.stringify(payload);
+ const id=editingBankPayout?.id??(pendingBankPayout?.key===key
+  ?pendingBankPayout.id:crypto.randomUUID());
+ if(!editingBankPayout)pendingBankPayout={key,id};
+ const controls=[...form.elements].filter(control=>!control.disabled);
+ savingBankPayout=true;
+ for(const control of controls)control.disabled=true;
+ status.textContent="Saving payout…";
+ try{
+  check(await db.rpc("save_duty_bank_payout",{p_id:id,...payload}));
+ }catch(error){
+  status.textContent="Could not confirm the payout. "+error.message+
+   " If the connection failed, retry the same draft or check saved payouts.";
+  return;
+ }finally{
+  savingBankPayout=false;
+  for(const control of controls)control.disabled=false;
+ }
+ resetBankPayoutDraft();
+ const refreshed=await loadAll();
+ await refreshOpenSheetAfterCash();
+ status.textContent=refreshed?"Payout saved. Print it from the saved list.":
+  "Payout saved. Use Refresh Data to refresh the list and balances.";
+};
+
 const customerSheet = document.createElement("section");
 customerSheet.id = "customerSheet";
 customerSheet.className = "card hidden";
@@ -1507,7 +1948,8 @@ customerSheet.innerHTML = `
    <legend>New Transaction</legend>
    <div class="grid">
     <div><label for="customerSheetType">Transaction Type</label><select id="customerSheetType" name="kind"></select></div>
-    <div><label for="customerSheetMethod">Payment Method</label><select id="customerSheetMethod" name="method" required><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Other">Other</option></select></div>
+    <div><label for="customerSheetMethod">Payment Method</label><select id="customerSheetMethod" name="method" required><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Other">Other</option><option value="bKash">bKash</option></select></div>
+    <div id="customerSheetBkashField" class="hidden"><label for="customerSheetBkash">bKash transaction reference</label><input id="customerSheetBkash" name="bkashReference" maxlength="40" required disabled></div>
     <div id="customerSheetBankField" class="hidden"><label for="customerSheetBank">Bank Name</label><select id="customerSheetBank" name="bank" required disabled>
      <option value="">Select a Bank</option>
      ${bangladeshBanks.map(bank=>`<option value="${esc(bank)}">${esc(bank)}</option>`).join("")}
@@ -1517,7 +1959,6 @@ customerSheet.innerHTML = `
     <div><label for="customerSheetContact" id="customerSheetContactLabel">Recipient Name</label><input id="customerSheetContact" name="contact" maxlength="120" required></div>
     <div><label for="customerSheetAmount" id="customerSheetAmountLabel">Amount</label><input id="customerSheetAmount" name="amount" type="number" min=".01" step=".01" required></div>
     <div id="customerSheetRateField"><label for="customerSheetRate">Rate (BDT/SAR)</label><input id="customerSheetRate" name="rate" type="number" min=".0001" step=".0001" required></div>
-    <div id="customerSheetCostField"><label for="customerSheetCost">Cost Rate (BDT/SAR)</label><input id="customerSheetCost" name="cost" type="number" min="0" step=".0001" required></div>
    </div>
    <p id="customerSheetPreview" class="muted" aria-live="polite"></p>
    <button type="submit">Save Entry</button>
@@ -1546,6 +1987,25 @@ customerSheetStyle.textContent = `
  .customer-sheet-table .sheet-opening{background:#f1f5fa}
 `;
 document.head.appendChild(customerSheetStyle);
+$("customerSheetRows").addEventListener("click",event=>{
+ const button=event.target.closest("[data-sheet-payment]");
+ const sheet=activeCustomerSheet;
+ if(!button||!admin()||!sheet?.entries)return;
+ const payment=sheet.entries[1].find(row=>String(row.id)===button.dataset.sheetPayment);
+ if(!payment)return;
+ if(currency(sheet.account)==="BDT"){
+  editRecord("payment",payment.id,payment);
+  return;
+ }
+ resetSarForm("sarPayment");
+ sarEdit.sarPayment=payment.id;
+ showPage("sarTransactions");
+ const form=$("sarPaymentForm");
+ for(const name of ["party_id","payment_date","amount_sar","reference","notes"])
+  form.elements[name].value=payment[name]??"";
+ form.scrollIntoView({behavior:"smooth"});
+ msg("Editing payment. Save to update.");
+});
 const customerEntryForm = $("customerSheetEntry");
 let activeCustomerSheet = null;
 
@@ -1555,19 +2015,21 @@ function customerSheetTables(account) {
   :[tables.sale,tables.payment];
 }
 
-async function readCustomerSheetTable(table, dateColumn, accountId) {
+async function readLedgerRows(table, orderColumn, accountId) {
  const pageSize=500;
  const rows=[];
  for(let offset=0;;offset+=pageSize){
-  const batch=check(await db.from(table).select("*").eq("party_id",accountId)
-   .order(dateColumn).order("id").range(offset,offset+pageSize-1));
+  let query=db.from(table).select("*");
+  if(accountId)query=query.eq("party_id",accountId);
+  const ascending=Boolean(accountId)||orderColumn==="name";
+  const batch=check(await query.order(orderColumn,{ascending}).order("id").range(offset,offset+pageSize-1));
   rows.push(...batch);
   if(batch.length<pageSize)return rows;
  }
 }
 
 function customerSheetReference(text) {
- const parts=/^(Cash|Bank|Other) — (.+)$/.exec(text||"");
+ const parts=/^(Cash|Bank|Other|bKash) — (.+)$/.exec(text||"");
  return parts ? {method:parts[1],contact:parts[2]} : {method:"",contact:text||""};
 }
 
@@ -1582,15 +2044,21 @@ function customerSheetDay(account, sales, payments, purchases, date, deposits=[]
    added:isSar?sarEntryAmount(entry):n(entry.total_bdt), joma:0
   })),
   ...payments.map(entry=>({
+   paymentId:entry.id,
    ...customerSheetReference(entry.reference||entry.notes),
    date:entry.payment_date, created:entry.created_at||"",
    bdt:null,
    rate:null, sar:null, added:0, joma:n(isSar?entry.amount_sar:entry.amount_bdt)
   })),
   ...purchases.map(entry=>{
+   if(entry.dutyPayout) return {
+    date:entry.purchase_date,created:entry.created_at,method:"Bank",
+    contact:purchaseDescription(entry),bdt:entry.paid_bdt,rate:entry.rate_bdt,
+    sar:entry.used_sar,added:isSar?n(entry.used_sar):0,joma:0
+   };
    const difference=purchaseDifference(entry);
    const adjustment=purchaseAdjustment(account,entry);
-   const details=["Riyal Buy",entry.bank_name,fmt(purchasePaid(entry))+" BDT paid",
+   const details=["Riyal Buy",entry.payment_method?purchaseMethod(entry):"",fmt(purchasePaid(entry))+" BDT paid",
     purchasePayoutText(difference,entry.rate_bdt),entry.payment_reference,entry.notes];
    return {method:entry.payment_method||"—",contact:details.filter(Boolean).join(" · "),
     date:entry.purchase_date,created:entry.created_at,bdt:entry.total_bdt,rate:entry.rate_bdt,
@@ -1630,7 +2098,7 @@ function renderCustomerSheet(){
   `<tr class="sheet-opening"><th scope="row" colspan="7">Balance Brought Forward (BF)</th><td class="sheet-balance">${moneyText(broughtForward)}</td></tr>`+
   rows.map(row=>{
    const methodClass=row.method==="Cash"?"sheet-cash":row.method==="Bank"?"sheet-bank":"";
-   return `<tr><td class="${methodClass}">${esc(row.method||"—")}</td><td>${esc(row.contact)}</td><td>${cell(row.bdt,fmt)}</td><td>${cell(row.rate,fmtSar)}</td><td>${cell(row.sar,fmtSar)}</td><td>${cell(row.added,moneyText)}</td><td class="sheet-joma">${cell(row.joma,moneyText)}</td><td class="sheet-balance">${moneyText(row.balance)}</td></tr>`;
+   return `<tr><td class="${methodClass}">${esc(row.method||"—")}</td><td>${esc(row.contact)}${admin()&&row.paymentId!=null?'<button type="button" class="secondary no-print" data-sheet-payment="'+esc(row.paymentId)+'">Edit payment</button>':""}</td><td>${cell(row.bdt,fmt)}</td><td>${cell(row.rate,fmtSar)}</td><td>${cell(row.sar,fmtSar)}</td><td>${cell(row.added,moneyText)}</td><td class="sheet-joma">${cell(row.joma,moneyText)}</td><td class="sheet-balance">${moneyText(row.balance)}</td></tr>`;
   }).join("")+(rows.length?"":'<tr><td colspan="8">No transactions on this date.</td></tr>');
  $("customerSheetTotal").innerHTML=
   `<tr><th scope="row" colspan="2">Daily Total</th><td>${fmt(totals.bdt)}</td><td></td><td>${fmtSar(totals.sar)}</td><td>${moneyText(totals.added)}</td><td>${moneyText(totals.joma)}</td><td>${moneyText(balance)} ${unit}</td></tr>`+
@@ -1645,6 +2113,9 @@ function updateCustomerEntry(){
  const fields=customerEntryForm.elements;
  $("customerSheetAmountLabel").textContent=sale||deposit?"Amount (SAR)":"Amount (BDT)";
  $("customerSheetContactLabel").textContent=conversion||sale?"Recipient Name":"Depositor Name";
+ const bkash=fields.method.value==="bKash";
+ fields.bkashReference.disabled=!bkash;
+ $("customerSheetBkashField").classList.toggle("hidden",!bkash);
  const bankEntry=fields.method.value==="Bank";
  const otherBank=bankEntry&&fields.bank.value==="other";
  fields.bank.disabled=!bankEntry;
@@ -1652,9 +2123,7 @@ function updateCustomerEntry(){
  $("customerSheetBankField").classList.toggle("hidden",!bankEntry);
  $("customerSheetOtherBankField").classList.toggle("hidden",!otherBank);
  fields.rate.disabled=!(conversion||sale);
- fields.cost.disabled=!sale;
  $("customerSheetRateField").classList.toggle("hidden",fields.rate.disabled);
- $("customerSheetCostField").classList.toggle("hidden",fields.cost.disabled);
  const amount=n(fields.amount.value),rate=n(fields.rate.value);
  $("customerSheetPreview").textContent=amount>0&&rate>0
   ?conversion?fmtSar(bdtToSar(amount,rate))+" SAR will be added":sale?fmt(amount*rate)+" BDT will be added":""
@@ -1664,9 +2133,9 @@ function updateCustomerEntry(){
 async function refreshCustomerSheet(sheet){
  const [salesTable,paymentsTable]=customerSheetTables(sheet.account);
  const entries=await Promise.all([
-  readCustomerSheetTable(salesTable,"sale_date",sheet.account.id),
-  readCustomerSheetTable(paymentsTable,"payment_date",sheet.account.id),
-  readPurchases(sheet.account.id),
+  readLedgerRows(salesTable,"sale_date",sheet.account.id),
+  readLedgerRows(paymentsTable,"payment_date",sheet.account.id),
+  readAccountPurchases(sheet.account.id),
   readCustomerCashDeposits(sheet.account.id)
  ]);
  if(activeCustomerSheet===sheet){sheet.entries=entries;renderCustomerSheet();}
@@ -1711,13 +2180,18 @@ async function openCustomerSheet(account){
 }
 
 function customerSheetPayload(account,date,entry){
- const amount=n(entry.amount),rate=n(entry.rate),cost=n(entry.cost);
+ const amount=n(entry.amount),rate=n(entry.rate);
  const kind=entry.kind;
  const isSar=currency(account)==="SAR";
  if(isSar?!["conversion","deposit"].includes(kind):!["sale","payment"].includes(kind))throw Error("This transaction type is unavailable for the account currency.");
  if(!date||!Number.isFinite(amount)||amount<=0)throw Error("Enter a date and a valid amount.");
- if(!["Cash","Bank","Other"].includes(entry.method)||!entry.contact?.trim())throw Error("Select a payment method and enter a name.");
+ if(!["Cash","Bank","Other","bKash"].includes(entry.method)||!entry.contact?.trim())throw Error("Select a payment method and enter a name.");
  let reference=entry.method+" — "+entry.contact.trim();
+ if(entry.method==="bKash"){
+  const transaction=entry.bkashReference?.trim();
+  if(!transaction)throw Error("Enter the bKash transaction reference.");
+  reference+=" · "+transaction;
+ }
  if(entry.method==="Bank"){
   const bank=entry.bank==="other"?entry.otherBank?.trim():entry.bank;
   if(!bank||(entry.bank!=="other"&&!bangladeshBanks.includes(bank)))throw Error("Enter the bank name.");
@@ -1729,10 +2203,10 @@ function customerSheetPayload(account,date,entry){
   const amountField=isSar?"amount_sar":"amount_bdt";
   return {table:paymentsTable,data:{...data,payment_date:date,[amountField]:amount,reference,notes:""}};
  }
- if(!Number.isFinite(rate)||rate<=0||!Number.isFinite(cost)||cost<0)throw Error("Enter a valid rate.");
+ if(!Number.isFinite(rate)||rate<=0)throw Error("Enter a valid rate.");
  const sar=kind==="conversion"?bdtToSar(amount,rate):amount;
  if(!Number.isFinite(sar)||sar<=0)throw Error("The SAR amount must be greater than zero.");
- const saleData={...data,sale_date:date,sar_amount:sar,selling_rate:rate,cost_rate:isSar?rate:cost,notes:reference};
+ const saleData={...data,sale_date:date,sar_amount:sar,selling_rate:rate,cost_rate:null,notes:reference};
  if(isSar)saleData.source_bdt_amount=amount;
  return {table:salesTable,data:saleData};
 }
@@ -1768,6 +2242,7 @@ customerEntryForm.onsubmit=async event=>{
  customerEntryForm.elements.contact.value="";
  customerEntryForm.elements.bank.value="";
  customerEntryForm.elements.otherBank.value="";
+ customerEntryForm.elements.bkashReference.value="";
  updateCustomerEntry();
  try{
   await refreshCustomerSheet(sheet);
@@ -1781,9 +2256,6 @@ customerEntryForm.onsubmit=async event=>{
  }
 };
 
-const usersSection=document.createElement("section");usersSection.id="users";usersSection.className="card page hidden";
-usersSection.innerHTML=`<h2>Employee & Customer Login IDs</h2><p class="muted">Existing login profiles are shown here. To create a login, add the user in Supabase Authentication and link their profile securely.</p><button type="button" id="refreshUsers">Refresh Users</button><div class="tablewrap"><table><thead><tr><th>Name</th><th>Role</th><th>Login User ID</th><th>Linked Account ID</th></tr></thead><tbody id="userAccountRows"></tbody></table></div>`;
-$("staff").appendChild(usersSection);
 function renderAccounts(){
  const parties=partyList.filter(p=>(p.party_type||"party")==="party");
  const customers=partyList.filter(p=>p.party_type==="customer");
@@ -1814,20 +2286,6 @@ showPage=function(page){
  }
  baseShowPage(page);
 };
-async function loadUsers(){
- const tbody=$("userAccountRows");
- if(!admin()){tbody.innerHTML='<tr><td colspan="4">Admin only</td></tr>';return;}
- tbody.innerHTML='<tr><td colspan="4">Loading...</td></tr>';
- try{
-  const data=check(await db.from("profiles").select("id,name,role,party_id").order("name"));
-  tbody.innerHTML=(data||[]).map(p=>`<tr><td>${esc(p.name)}</td><td><span class="te-tag">${esc(p.role)}</span></td><td class="te-id">${esc(p.id)}</td><td class="te-id">${esc(p.party_id||"-")}</td></tr>`).join("")||'<tr><td colspan="4">No visible profiles (check RLS)</td></tr>';
- }catch(err){tbody.innerHTML=`<tr><td colspan="4">${esc(err.message)}</td></tr>`;}
-}
-$("refreshUsers").onclick=loadUsers;
-userNav.onclick=async()=>{showPage("users");await loadUsers();};
-// Never expose admin-only user details to employees.
-const originalLoginView=loginView;
-loginView=async function(){await originalLoginView();userNav.classList.toggle("hidden",!admin());};
 
 
 /* SAR-only transaction pages; BDT records are not touched */
@@ -1869,11 +2327,10 @@ sarSection.innerHTML=`
 <div id="sarBdtField"><label>BD Amount (BDT)</label><input name="source_bdt_amount" type="number" min=".01" step=".01" required></div>
 <div id="sarAmountField"><label>SAR Amount</label><input name="sar_amount" type="number" min=".01" step=".01" required></div>
 <div><label>Rate (BDT/SAR)</label><input name="selling_rate" type="number" min=".0001" step=".0001" required></div>
-<div id="sarCostField"><label>Cost Rate (BDT/SAR)</label><input name="cost_rate" type="number" min="0" step=".0001" required></div>
 <div><label>Notes</label><input name="notes"></div></div>
 <p id="sarConversionPreview" class="muted" aria-live="polite"></p>
 <button type="submit">Save SAR Entry</button><button type="button" class="secondary" id="sarSaleCancel">Cancel Edit</button></form>
-<div class="tablewrap"><table><thead><tr><th>Date</th><th>Account</th><th>BD Amount</th><th>Rate (BDT/SAR)</th><th>SAR Added</th><th>Notes</th><th>Profit BDT</th><th>Actions</th></tr></thead><tbody id="sarSaleRows"></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>Date</th><th>Account</th><th>BD Amount</th><th>Rate (BDT/SAR)</th><th>SAR Added</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="sarSaleRows"></tbody></table></div>
 <form id="sarPaymentForm"><h3>SAR Deposit</h3><div class="grid">
 <div><label>Account (SAR)</label><select name="party_id" class="sarParty" required></select></div>
 <div><label>Date</label><input name="payment_date" type="date" required></div>
@@ -1899,10 +2356,8 @@ function updateSarEntryForm(){
  const conversion=$("sarEntryMode").value==="conversion";
  $("sarBdtField").classList.toggle("hidden",!conversion);
  $("sarAmountField").classList.toggle("hidden",conversion);
- $("sarCostField").classList.toggle("hidden",conversion);
  f.elements.source_bdt_amount.disabled=!conversion;
  f.elements.sar_amount.disabled=conversion;
- f.elements.cost_rate.disabled=conversion;
  const bdt=n(f.elements.source_bdt_amount.value);
  const rate=n(f.elements.selling_rate.value);
  $("sarConversionPreview").textContent=conversion&&bdt>0&&rate>0
@@ -1929,7 +2384,7 @@ function renderSarTables(){
   el.innerHTML='<option value="">Select SAR Account</option>'+partyList.filter(p=>currency(p)==="SAR").map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
   if(partyList.some(p=>p.id===old&&currency(p)==="SAR"))el.value=old;
  });
- $("sarSaleRows").innerHTML=sarSales.map(x=>`<tr><td>${esc(x.sale_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${x.source_bdt_amount==null?"":fmt(x.source_bdt_amount)}</td><td>${fmtSar(x.selling_rate)}</td><td>${fmtSar(sarEntryAmount(x))}</td><td>${esc(x.notes)}</td><td>${x.source_bdt_amount==null?fmt(n(x.sar_amount)*(n(x.selling_rate)-n(x.cost_rate))):""}</td><td>${sarButtons("sarSale",x.id)}</td></tr>`).join("");
+ $("sarSaleRows").innerHTML=sarSales.map(x=>`<tr><td>${esc(x.sale_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${x.source_bdt_amount==null?"":fmt(x.source_bdt_amount)}</td><td>${fmtSar(x.selling_rate)}</td><td>${fmtSar(sarEntryAmount(x))}</td><td>${esc(x.notes)}</td><td>${sarButtons("sarSale",x.id)}</td></tr>`).join("");
  $("sarPaymentRows").innerHTML=sarPayments.map(x=>`<tr><td>${esc(x.payment_date)}</td><td>${esc(partyName(x.party_id))}</td><td>${fmt(x.amount_sar)}</td><td>${esc(x.reference)}</td><td>${sarButtons("sarPayment",x.id)}</td></tr>`).join("");
 }
 Object.keys(sarForms).forEach(type=>{
@@ -1946,9 +2401,8 @@ Object.keys(sarForms).forEach(type=>{
     const rate=n(v.selling_rate);
     const bdt=n(v.source_bdt_amount);
     const sar=conversion?bdtToSar(bdt,rate):n(v.sar_amount);
-    const cost=conversion?rate:n(v.cost_rate);
-    if(![rate,sar,cost].every(Number.isFinite)||rate<=0||sar<=0||cost<0)throw Error("Enter a valid amount and rate");
-    Object.assign(data,{sale_date:v.sale_date,sar_amount:sar,selling_rate:rate,cost_rate:cost});
+    if(![rate,sar].every(Number.isFinite)||rate<=0||sar<=0)throw Error("Enter a valid amount and rate");
+    Object.assign(data,{sale_date:v.sale_date,sar_amount:sar,selling_rate:rate});
     if(conversion)data.source_bdt_amount=bdt;
    }else{
     const sar=n(v.amount_sar);
@@ -1957,8 +2411,15 @@ Object.keys(sarForms).forEach(type=>{
    }
    const id=sarEdit[type];
    if(id){if(!admin())throw Error("Only admin can edit");const rows=check(await db.from(sarTables[type]).update(data).eq("id",id).select("id"));if(!rows.length)throw Error("Update denied");}
-   else{data.created_by=user.id;check(await db.from(sarTables[type]).insert(data));}
-   resetSarForm(type);await loadAll();msg("SAR transaction saved");
+   else{
+    data.created_by=user.id;
+    if(type==="sarSale")data.cost_rate=null;
+    check(await db.from(sarTables[type]).insert(data));
+   }
+   resetSarForm(type);
+   const refreshed=await loadAll();
+   await refreshOpenSheetAfterCash();
+   if(refreshed)msg("SAR transaction saved");
   }catch(err){msg("SAR save error: "+err.message,true)}finally{btn.disabled=false}
  };
 });
@@ -1980,7 +2441,13 @@ document.addEventListener("click",async e=>{
   f.scrollIntoView({behavior:"smooth"});msg("Editing SAR transaction");
  }else if(act==="delete"){
   if(!confirm("Permanently delete this SAR transaction?"))return;
-  try{const rows=check(await db.from(sarTables[type]).delete().eq("id",id).select("id"));if(!rows.length)throw Error("Delete denied");await loadAll();msg("SAR transaction deleted");}
+  try{
+   const rows=check(await db.from(sarTables[type]).delete().eq("id",id).select("id"));
+   if(!rows.length)throw Error("Delete denied");
+   const refreshed=await loadAll();
+   await refreshOpenSheetAfterCash();
+   if(refreshed)msg("SAR transaction deleted");
+  }
   catch(err){msg("SAR delete error: "+err.message,true)}
  }
 },true);
