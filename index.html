@@ -87,6 +87,12 @@ tbody tr:hover{background:#f7fbfe}
 #cashPeriods button{margin:0;padding:7px 10px;background:#eaf0f5;color:#33485d}
 #cashPeriods [aria-pressed="true"]{background:#173958;color:white}
 #cashSearch{max-width:270px}
+.cash-date-range{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;margin:12px 0 8px;border:1px solid #cbdce8;border-radius:10px;background:#f2f7fb;color:#183652;text-align:center}
+.cash-date-range button{margin:3px;padding:4px;min-height:34px;font-size:21px}
+.cash-date-range button:disabled{visibility:hidden}
+.cash-date-range strong{font-size:13px}
+.cash-book-list{max-height:520px;max-height:min(55dvh,520px);overflow:auto}
+.cash-book-table thead{position:sticky;top:0;z-index:1}
 #cashForm{background:#f4f8fb;border:1px solid #dbe7ef;border-radius:12px;padding:14px;margin-top:15px;scroll-margin-top:100px}
 #cashCustomerField{grid-column:1/-1}
 #cashForm h3{margin:0}
@@ -114,11 +120,14 @@ tbody tr:hover{background:#f7fbfe}
 .cash-book-actions button{margin:0;min-height:44px}
 #cashAddIn{background:var(--cash-in)}
 #cashAddOut{background:var(--cash-out)}
-.cash-book-total{grid-template-columns:repeat(3,minmax(0,1fr));margin:14px 0 0}
+.cash-book-total{grid-template-columns:repeat(3,minmax(0,1fr));margin:8px 0 0}
 .cash-book-total>div{min-width:0;padding:7px;background:#f0f5f9;border-radius:8px}
 .cash-book-total>div:last-child{background:#e5f1f2}
 .cash-book-total dt{font-size:11px;color:#445c73}
 .cash-book-total dd{margin:2px 0 0;font-size:clamp(13px,2.8vw,21px);font-variant-numeric:tabular-nums;font-weight:700;overflow-wrap:anywhere}
+.cash-carry{margin:6px 0 0;padding:0 9px;border-top:1px solid #dbe7ef}
+.cash-carry>div{display:flex;justify-content:space-between;gap:8px;padding-top:6px}
+.cash-carry dd{margin:0;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:600px){#cashSearch{max-width:none}#cashPeriods button{padding:6px 8px}.cash-book-table th,.cash-book-table td{padding:8px 5px;font-size:12px}}
 #cashReportDialog{width:min(420px,calc(100% - 26px));border:1px solid #d6e2ec;border-radius:16px;padding:16px;color:#18314d;box-shadow:0 18px 70px #102b4e45}
 #cashReportDialog::backdrop{background:#14283b75}
@@ -285,7 +294,7 @@ tbody tr:hover{background:#f7fbfe}
 </form>
 <p id="purchaseStatus" role="status"></p>
 <details class="card">
-<summary><strong>Bank Payment Memo / ব্যাংক পেমেন্ট মেমো</strong></summary>
+<summary><strong>Bank Payment Memo</strong></summary>
 <p class="muted">Save confirmed bank payments against an earlier Cash In deposit, or print a memo.</p>
 <p id="bankMemoSetup" class="err hidden" role="status"></p>
 <form id="bankMemoForm">
@@ -367,12 +376,7 @@ tbody tr:hover{background:#f7fbfe}
 </section>
 
 <section id="cash" class="card page hidden">
-<div class="cash-book-title"><div><h2>ক্যাশ বুক</h2><span class="muted">সৌদি রিয়াল · SAR</span></div><button type="button" class="secondary no-print" id="cashReportButton" aria-haspopup="dialog">রিপোর্ট</button></div>
-<dl class="cash-book-total" aria-label="Cash totals for selected period">
-<div><dt>মোট জমা</dt><dd id="cashIn" class="cash-credit">0</dd></div>
-<div><dt>মোট খরচ</dt><dd id="cashOut" class="cash-debit">0</dd></div>
-<div><dt>ক্যাশ ব্যালেন্স</dt><dd id="cashBalance">0</dd></div>
-</dl>
+<div class="cash-book-title"><div><h2>Cash Book</h2><span class="muted">Saudi Riyal · SAR</span></div><button type="button" class="secondary no-print" id="cashReportButton" aria-haspopup="dialog">Report</button></div>
 <dialog id="cashReportDialog" class="no-print" aria-labelledby="cashReportTitle">
  <div class="cash-report-heading"><h3 id="cashReportTitle">Cash Book Report</h3>
  <form method="dialog"><button type="submit" class="secondary" aria-label="Close report options">Close</button></form></div>
@@ -396,12 +400,18 @@ tbody tr:hover{background:#f7fbfe}
 </div>
 <input id="cashSearch" type="search" placeholder="Search name or notes" aria-label="Search Cash Book">
 </div>
+<div class="cash-date-range">
+ <button type="button" id="cashPreviousPeriod" class="secondary no-print" aria-label="Previous period" disabled>‹</button>
+ <strong id="cashDateRange" aria-live="polite">All dates</strong>
+ <button type="button" id="cashNextPeriod" class="secondary no-print" aria-label="Next period" disabled>›</button>
+</div>
 <form id="cashForm" class="hidden">
 <h3 id="cashFormTitle">New cash entry</h3>
 <input name="entry_type" type="hidden" value="in">
 <div class="grid">
-<div id="cashCustomerField" class="hidden"><label for="cashCustomer">Customer / কাস্টমার</label><select id="cashCustomer" name="customer_id" disabled></select><p id="cashAccountPreview" class="cash-account-preview" aria-live="polite"></p></div>
+<div id="cashCustomerField" class="hidden"><label for="cashCustomer">Customer (optional)</label><select id="cashCustomer" name="customer_id" disabled></select><p id="cashAccountPreview" class="cash-account-preview" aria-live="polite"></p></div>
 <div><label for="cashEntryDate">Date</label><input id="cashEntryDate" name="entry_date" type="date" required></div>
+<div><label for="cashEntryTime">Time</label><input id="cashEntryTime" name="entry_time" type="time" required></div>
 <div id="cashNameField"><label for="cashEntryName">Person / Reference</label><input id="cashEntryName" name="person_name" required></div>
 <div><label for="cashEntryAmount">Amount (SAR)</label><input id="cashEntryAmount" name="amount_sar" type="number" min=".01" step=".01" required></div>
 <div><label for="cashEntryNotes">Notes</label><input id="cashEntryNotes" name="notes"></div>
@@ -410,7 +420,7 @@ tbody tr:hover{background:#f7fbfe}
 <button type="button" class="secondary" id="cashCancel">Cancel</button>
 </form>
 <p id="cashPeriodLabel" class="muted" aria-live="polite"></p>
-<div class="tablewrap">
+<div class="tablewrap cash-book-list" tabindex="0" aria-label="Cash Book transactions">
 <table class="cash-book-table">
 <thead><tr><th scope="col">Date</th><th scope="col">Notes</th><th scope="col" class="cash-credit">Cash In</th><th scope="col" class="cash-debit">Cash Out</th></tr></thead>
 <tbody id="cashRows"></tbody>
@@ -418,9 +428,18 @@ tbody tr:hover{background:#f7fbfe}
 </div>
 <div class="cash-book-footer">
 <div class="cash-book-actions no-print">
-<button type="button" id="cashAddIn">+ Cash In / জমা</button>
-<button type="button" id="cashAddOut">− Cash Out / খরচ</button>
+<button type="button" id="cashAddIn">+ Cash In</button>
+<button type="button" id="cashAddOut">− Cash Out</button>
 </div>
+<dl class="cash-book-total" aria-label="Cash totals for selected period">
+<div><dt>Total Cash In</dt><dd id="cashIn" class="cash-credit">0</dd></div>
+<div><dt>Total Cash Out</dt><dd id="cashOut" class="cash-debit">0</dd></div>
+<div><dt>Period Balance</dt><dd id="cashBalance">0</dd></div>
+</dl>
+<dl class="cash-carry hidden" id="cashCarry" aria-label="Opening and closing cash balances">
+ <div><dt>Previous Balance</dt><dd id="cashPreviousBalance">0</dd></div>
+ <div><dt>Closing Balance</dt><dd id="cashClosingBalance">0</dd></div>
+</dl>
 </div>
 </section>
 
@@ -498,7 +517,10 @@ if(type==="party"){
 }
 const date=f.querySelector('input[type="date"]');
 if(date)date.value=today();
-if(type==="cash")f.classList.add("hidden");
+if(type==="cash"){
+ $("cashEntryTime").value=localCashTime(new Date());
+ f.classList.add("hidden");
+}
 if(type==="sale")salePreview();
 }
 function currency(p){return p.account_currency==="SAR"?"SAR":"BDT"}
@@ -729,7 +751,8 @@ sarSales=ss;sarPayments=sp;
 purchaseList=purchases.rows;
 dutyPayoutList=dutyPayouts.rows;
 dutyPayoutsReady=dutyPayouts.ready;
-cashList=[...c,...purchaseCashEntries()].sort((a,b)=>b.entry_date.localeCompare(a.entry_date)
+ cashList=[...c,...purchaseCashEntries()].sort((a,b)=>b.entry_date.localeCompare(a.entry_date)
+ ||cashTransactionTime(b).localeCompare(cashTransactionTime(a))
  ||String(b.created_at??"").localeCompare(String(a.created_at??"")));
 renderAll();
 renderPurchases(purchases.ready);
@@ -856,7 +879,7 @@ function renderPurchases(available){
  }
  $("purchaseFields").disabled=!available||savingPurchase;
  $("bankMemoSetup").classList.toggle("hidden",dutyPayoutsReady);
- $("bankMemoSetup").textContent=dutyPayoutsReady?"":"আগের জমা থেকে পেআউট সেভ করতে Supabase-এ আপডেট করা riyal_buy.sql চালান।";
+ $("bankMemoSetup").textContent=dutyPayoutsReady?"":"Run the updated riyal_buy.sql in Supabase to save payouts from earlier deposits.";
  $("saveBankMemo").disabled=!dutyPayoutsReady||savingBankPayout;
  purchaseStatus.textContent=available?(customers.length?"":"Add a customer from the Customers menu first."):
   "Run the updated riyal_buy.sql in Supabase to enable this form.";
@@ -1096,7 +1119,7 @@ function editPurchasePayment(row){
  $("savePurchase").textContent="Update Payment";
  $("cancelPurchaseEdit").classList.remove("hidden");
  purchaseStatus.textContent=row.payment_method==="Shomiti"
-  ?"এই পুরোনো পেমেন্টটি এডিট করতে Cash, Bank বা bKash বেছে নিন।":"";
+  ?"To edit this older payment, select Cash, Bank or bKash.":"";
  updatePurchaseBankFields();
  if(row.payment_method!=="Bank")purchaseForm.elements.paid_bdt.value=purchasePaid(row);
  previewPurchase();
@@ -1196,8 +1219,18 @@ purchaseForm.addEventListener("submit",async event=>{
 });
 
 let cashPeriod="all";
+let cashPeriodDay=today();
 const cashDateFormat=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short",year:"numeric"});
 const cashTimeFormat=new Intl.DateTimeFormat("en-GB",{hour:"2-digit",minute:"2-digit",hour12:true});
+
+function localCashTime(date){
+ if(!Number.isFinite(date.getTime()))return "";
+ return String(date.getHours()).padStart(2,"0")+":"+String(date.getMinutes()).padStart(2,"0");
+}
+
+function cashTransactionTime(row){
+ return row.entry_time?.slice(0,5)||localCashTime(new Date(row.created_at||""));
+}
 
 function cashPeriodDates(period,day=today()){
  if(period==="daily")return [day,day];
@@ -1216,6 +1249,16 @@ function cashPeriodDates(period,day=today()){
  return [monday.toISOString().slice(0,10),sunday.toISOString().slice(0,10)];
 }
 
+function shiftCashPeriod(period,day,direction){
+ const [start]=cashPeriodDates(period,day);
+ if(!start)return day;
+ const date=new Date(start+"T12:00:00Z");
+ if(period==="yearly")date.setUTCFullYear(date.getUTCFullYear()+direction);
+ else if(period==="monthly")date.setUTCMonth(date.getUTCMonth()+direction);
+ else date.setUTCDate(date.getUTCDate()+direction*(period==="weekly"?7:1));
+ return date.toISOString().slice(0,10);
+}
+
 function cashBookView(list,period,query,day=today()){
  const [from,to]=cashPeriodDates(period,day);
  const periodRows=list.filter(row=>(!from||row.entry_date>=from)&&(!to||row.entry_date<=to));
@@ -1223,37 +1266,49 @@ function cashBookView(list,period,query,day=today()){
  const rows=periodRows.filter(row=>[row.person_name,row.notes,row.entry_date].some(value=>String(value??"").toLocaleLowerCase().includes(search)));
  const incoming=periodRows.reduce((sum,row)=>sum+(row.entry_type==="in"?n(row.amount_sar):0),0);
  const outgoing=periodRows.reduce((sum,row)=>sum+(row.entry_type==="out"?n(row.amount_sar):0),0);
- return {rows,incoming,outgoing};
+ const previous=from?list.reduce((sum,row)=>{
+  if(row.entry_date>=from)return sum;
+  return sum+(row.entry_type==="in"?n(row.amount_sar):row.entry_type==="out"?-n(row.amount_sar):0);
+ },0):0;
+ return {rows,incoming,outgoing,previous,from,to};
 }
 
 function loadCashBookView(){
- return cashBookView(cashList,cashPeriod,$("cashSearch").value);
+ return cashBookView(cashList,cashPeriod,$("cashSearch").value,cashPeriodDay);
 }
 
 function renderCash(){
- const {rows,incoming,outgoing}=loadCashBookView();
+ const {rows,incoming,outgoing,previous,from,to}=loadCashBookView();
  const customerSelect=$("cashCustomer");
  const selectedCustomer=customerSelect.value;
- customerSelect.innerHTML='<option value="">সাধারণ ক্যাশ জমা</option>'+partyList
+ customerSelect.innerHTML='<option value="">General cash entry</option>'+partyList
   .filter(row=>row.party_type==="customer"||row.id===selectedCustomer).map(row=>
    `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join("");
  customerSelect.value=selectedCustomer;
  renderCashAccountPreview();
  const label=$("cashPeriods").querySelector('[aria-pressed="true"]').textContent;
  $("cashPeriodLabel").textContent=label+" · "+rows.length+" entries";
+ const dated=Boolean(from);
+ $("cashPreviousPeriod").disabled=!dated;
+ $("cashNextPeriod").disabled=!dated;
+ $("cashDateRange").textContent=!dated?"All dates":cashPeriod==="daily"&&from===today()?"Today":
+  from===to?cashReportDate(from):cashReportDate(from)+" – "+cashReportDate(to);
+ $("cashCarry").classList.toggle("hidden",!dated);
  $("cashIn").textContent=fmt(incoming);
  $("cashOut").textContent=fmt(outgoing);
  $("cashBalance").textContent=fmt(incoming-outgoing);
+ $("cashPreviousBalance").textContent=fmt(previous);
+ $("cashClosingBalance").textContent=fmt(previous+incoming-outgoing);
  $("cashRows").innerHTML=rows.map(row=>{
   const entryDate=new Date(row.entry_date+"T12:00:00");
   const dateText=Number.isFinite(entryDate.getTime())?cashDateFormat.format(entryDate):row.entry_date;
-  const savedDate=new Date(row.created_at||"");
-  const savedTime=Number.isFinite(savedDate.getTime())?cashTimeFormat.format(savedDate):"";
+  const entryTime=cashTransactionTime(row);
+  const savedTime=entryTime?cashTimeFormat.format(new Date("2000-01-01T"+entryTime)):"";
   const actions=admin()&&!row.linkedPurchase?`<details><summary>Manage</summary>${buttons("cash",row.id)}</details>`:"";
   const name=row.customer_id&&partyList.some(account=>account.id===row.customer_id)
    ?`<button type="button" class="cash-account-link no-print" data-cash-ledger="${esc(row.customer_id)}">${esc(row.person_name)}</button><strong class="cash-account-print">${esc(row.person_name)}</strong>`
    :`<strong>${esc(row.person_name)}</strong>`;
-  return `<tr><td><time datetime="${esc(row.entry_date)}">${esc(dateText)}</time>${savedTime?`<small title="Recorded time">${esc(savedTime)}</small>`:""}</td><td>${name}<small>${esc(row.notes)}</small>${actions}</td><td class="cash-credit">${row.entry_type==="in"?fmt(row.amount_sar):""}</td><td class="cash-debit">${row.entry_type==="out"?fmt(row.amount_sar):""}</td></tr>`;
+  return `<tr><td><time datetime="${esc(row.entry_date)}">${esc(dateText)}</time>${savedTime?`<small title="Transaction time">${esc(savedTime)}</small>`:""}</td><td>${name}<small>${esc(row.notes)}</small>${actions}</td><td class="cash-credit">${row.entry_type==="in"?fmt(row.amount_sar):""}</td><td class="cash-debit">${row.entry_type==="out"?fmt(row.amount_sar):""}</td></tr>`;
  }).join("")||'<tr><td colspan="4">No matching cash entries.</td></tr>';
 }
 
@@ -1282,21 +1337,26 @@ function renderCashAccountPreview(){
  const target=$("cashAccountPreview");
  const account=customer.disabled?null:partyList.find(row=>row.id===customer.value);
  if(!account){
-  target.textContent=customer.disabled?"":"কাস্টমার বেছে নিলে জমা সরাসরি তার SAR লেজারে যাবে।";
+  target.textContent=customer.disabled?"":"Choose a customer to post the Cash In entry to their SAR ledger.";
   return;
  }
  const balance=currency(account)==="SAR"?due(account):customerSrBalance(purchasesFor(account.id),cashDepositsFor(account.id));
  const amount=$("cashEntryAmount").valueAsNumber;
  const oldDeposit=cashDepositsFor(account.id).find(row=>String(row.id)===String(editIds.cash));
- target.textContent="বর্তমান SAR ব্যালেন্স: "+fmtSar(balance)+" SAR"+(
-  Number.isFinite(amount)&&amount>0?" · জমার পর: "+fmtSar(balance+n(oldDeposit?.amount_sar)-amount)+" SAR":""
+ target.textContent="Current balance: "+fmtSar(balance)+" SAR"+(
+  Number.isFinite(amount)&&amount>0?" · After deposit: "+fmtSar(balance+n(oldDeposit?.amount_sar)-amount)+" SAR":""
  );
 }
 
 function openCashForm(kind,editing=false){
  const form=$("cashForm");
  if(form.querySelector('[type="submit"]').disabled)return;
- if(!editing)resetForm("cash");
+ if(!editing){
+  resetForm("cash");
+  const [start,end]=cashPeriodDates(cashPeriod,cashPeriodDay);
+  const currentDay=today();
+  if(start&&(currentDay<start||currentDay>end))form.elements.entry_date.value=start;
+ }
  form.elements.entry_type.value=kind;
  updateCashCustomerFields(kind);
  $("cashFormTitle").textContent=(editing?"Edit ":"New ")+(kind==="out"?"Cash Out":"Cash In");
@@ -1311,9 +1371,16 @@ $("cashPeriods").onclick=event=>{
  const selected=event.target.closest("[data-period]");
  if(!selected)return;
  cashPeriod=selected.dataset.period;
+ cashPeriodDay=today();
  $("cashPeriods").querySelectorAll("[data-period]").forEach(button=>button.setAttribute("aria-pressed",String(button===selected)));
  renderCash();
 };
+for(const [id,direction] of [["cashPreviousPeriod",-1],["cashNextPeriod",1]]){
+ $(id).onclick=()=>{
+  cashPeriodDay=shiftCashPeriod(cashPeriod,cashPeriodDay,direction);
+  renderCash();
+ };
+}
 $("cashSearch").addEventListener("input",renderCash);
 $("cashAddIn").onclick=()=>openCashForm("in");
 $("cashAddOut").onclick=()=>openCashForm("out");
@@ -1438,7 +1505,7 @@ function cashExcelLibrary(){
 }
 
 $("cashReportButton").onclick=()=>{
- const [from,to]=cashPeriodDates(cashPeriod);
+ const [from,to]=cashPeriodDates(cashPeriod,cashPeriodDay);
  $("cashReportFrom").value=from;
  $("cashReportTo").value=to;
  $("cashReportDialog").showModal();
@@ -1554,7 +1621,7 @@ if(type==="cash"){
  const customer=v.customer_id?partyList.find(account=>account.id===v.customer_id&&account.party_type==="customer"):null;
  if(v.customer_id&&!customer)throw Error("Select a registered customer.");
  const original=cashList.find(row=>row.id===editIds.cash&&!row.linkedPurchase);
- return {entry_date:v.entry_date,entry_type:v.entry_type,person_name:customer?customer.name:v.person_name.trim(),
+ return {entry_date:v.entry_date,entry_time:v.entry_time,entry_type:v.entry_type,person_name:customer?customer.name:v.person_name.trim(),
   amount_sar:n(v.amount_sar),notes:v.notes||"",
   ...(customer||original?.customer_id?{customer_id:customer?.id??null}:{})};
 }
@@ -1565,6 +1632,7 @@ if(type==="party"&&!Number.isFinite(n(p.opening_due_bdt)+n(p.opening_balance_sar
 if(type==="party"&&(!["SAR","BDT"].includes(p.account_currency)||n(p.opening_due_bdt)<0||n(p.opening_balance_sar)<0))throw Error("Invalid account currency or opening balance");
 if(type==="sale"&&(!Number.isFinite(p.sar_amount)||!Number.isFinite(p.selling_rate)||p.sar_amount<=0||p.selling_rate<=0))throw Error("Invalid sale amount or rate");
 if(type==="payment"&&p.amount_bdt<=0)throw Error("Invalid payment");
+if(type==="cash"&&(!p.entry_date||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(p.entry_time)))throw Error("Enter a valid transaction date and time.");
 if(type==="cash"&&(!p.person_name||!Number.isFinite(p.amount_sar)||p.amount_sar<=0||!["in","out"].includes(p.entry_type)))throw Error("Enter a name and valid cash amount");
 }
 Object.keys(forms).forEach(type=>{
@@ -1630,7 +1698,10 @@ if(type==="party"){
 }
 editIds[type]=x.id;
 Object.keys(x).forEach(k=>{if(f.elements[k]&&x[k]!=null)f.elements[k].value=x[k]});
-if(type==="cash")openCashForm(x.entry_type,true);
+if(type==="cash"){
+ $("cashEntryTime").value=cashTransactionTime(x)||localCashTime(new Date());
+ openCashForm(x.entry_type,true);
+}
 if(type==="party"){
 $("accountType").value=x.party_type||"party";
 $("accountCurrency").value=currency(x);
