@@ -311,6 +311,7 @@ tbody tr:hover{background:#f7fbfe}
 <div class="actions">
 <button type="button" class="secondary" id="addMemoBank">+ Add Bank</button>
 <button type="submit">Print / PDF Bank Memo</button>
+<button type="button" class="secondary" id="shareBankMemo">Share on WhatsApp</button>
 <button type="button" id="saveBankMemo">Save Confirmed Payout</button>
 <button type="button" id="cancelBankMemoEdit" class="secondary hidden">Cancel Edit</button>
 </div>
@@ -323,7 +324,7 @@ tbody tr:hover{background:#f7fbfe}
 <div><label for="purchaseMemoCustomer">Filter by Customer</label><select id="purchaseMemoCustomer"></select></div>
 <div><label for="purchaseMemoDate">Filter by Date</label><input id="purchaseMemoDate" type="date"></div>
 </div>
-<div class="actions no-print"><button type="button" id="printPurchaseMemo">Print / PDF Memo</button></div>
+<div class="actions no-print"><button type="button" id="printPurchaseMemo">Print / PDF Memo</button> <button type="button" class="secondary" id="sharePurchaseMemo">Share on WhatsApp</button></div>
 <div class="tablewrap">
 <table>
 <thead><tr><th>Date</th><th>Customer</th><th>Method / Bank</th><th>SAR Received</th><th>Rate</th><th>BDT Value</th><th>BDT Paid</th><th>Payment Balance</th><th class="no-print">Actions</th></tr></thead>
@@ -862,10 +863,12 @@ function renderPurchaseRows(){
  $("purchaseRows").innerHTML=rows.map(purchase=>`<tr>
   ${purchaseMemoCells(purchase).map(value=>`<td>${esc(value)}</td>`).join("")}
   <td class="no-print"><button type="button" class="secondary" data-purchase-memo="${esc(purchase.id)}">Memo</button>
+  <button type="button" class="secondary" data-purchase-share="${esc(purchase.id)}">Share on WhatsApp</button>
   ${admin()?`<button type="button" data-purchase-edit="${esc(purchase.id)}">Edit Payment</button>
   <button type="button" class="danger" data-purchase-delete="${esc(purchase.id)}">Delete</button>`:""}</td></tr>`
  ).join("")||'<tr><td colspan="9">No matching purchases.</td></tr>';
  $("printPurchaseMemo").disabled=!rows.length;
+ $("sharePurchaseMemo").disabled=!rows.length;
 }
 
 function renderPurchases(available){
@@ -884,6 +887,196 @@ function renderPurchases(available){
  purchaseStatus.textContent=available?(customers.length?"":"Add a customer from the Customers menu first."):
   "Run the updated riyal_buy.sql in Supabase to enable this form.";
  renderPurchaseRows();
+}
+
+function memoWhatsAppNumber(value){
+ const text=String(value??"").trim();
+ if(!/^(?:\+|00)?[0-9 ()-]+$/.test(text))return "";
+ const digits=text.replace(/\D/g,"").replace(/^00/,"");
+ return /^[1-9][0-9]{7,14}$/.test(digits)?digits:"";
+}
+
+function drawMemoImage(view,memo,businessNumber){
+ const canvas=view.document.createElement("canvas");
+ const context=canvas.getContext("2d");
+ const width=1000, margin=48, textWidth=width-2*margin;
+ const lines=[];
+ let cursor=57;
+ function add(text,size=26,bold=false,color="#18314d"){
+  const font=(bold?"bold ":"")+size+"px system-ui, sans-serif";
+  context.font=font;
+  const write=value=>{
+   lines.push({value,font,color,y:cursor});
+   cursor+=Math.ceil(size*1.45);
+  };
+  for(const paragraph of String(text??"").split(/\r?\n/)){
+   let line="";
+   for(const word of paragraph.trim().split(/\s+/)){
+    const combined=line?line+" "+word:word;
+    if(context.measureText(combined).width<=textWidth){line=combined;continue;}
+    if(line)write(line);
+    line="";
+    for(const character of word){
+     if(line&&context.measureText(line+character).width>textWidth){write(line);line="";}
+     line+=character;
+    }
+   }
+   if(line)write(line);
+  }
+ }
+ add("Tajkiya Enterprise",40,true,"#102b4e");
+ add(memo.title,32,true,"#086c52");
+ add(memo.customer+"  ·  "+memo.date,26,true);
+ if(businessNumber)add("Business WhatsApp: +"+businessNumber,24);
+ if(memo.reference)add("Reference: "+memo.reference,22);
+ cursor+=18;
+ for(const section of memo.sections){
+  if(section.title)add(section.title,27,true);
+  for(const line of section.lines)add(line);
+  cursor+=16;
+  if(cursor>15800)throw Error("This memo is too long for one image. Filter by date or share individual entries.");
+ }
+ for(const line of memo.totals??[])add(line,27,true,"#086c52");
+ if(memo.notes){cursor+=10;add("Notes: "+memo.notes);}
+ canvas.width=width;
+ canvas.height=cursor+48;
+ context.fillStyle="#fff";
+ context.fillRect(0,0,canvas.width,canvas.height);
+ context.fillStyle="#086c52";
+ context.fillRect(0,0,width,12);
+ context.textBaseline="top";
+ for(const line of lines){
+  context.font=line.font;
+  context.fillStyle=line.color;
+  context.fillText(line.value,margin,line.y);
+ }
+ const encoded=canvas.toDataURL("image/png").split(",")[1];
+ if(!encoded)throw Error("The memo image could not be generated.");
+ const bytes=Uint8Array.from(view.atob(encoded),character=>character.charCodeAt(0));
+ return new view.File([bytes],memo.filename+".png",{type:"image/png"});
+}
+
+function openMemoShare(memo,view=window){
+ const doc=view.document;
+ const businessKey="tajkiya.businessWhatsApp";
+ const customerKey=memo.customerId?"tajkiya.customerWhatsApp."+memo.customerId:null;
+ const preference=(key,value)=>{
+  if(!key)return "";
+  try{
+   if(value!==undefined)view.localStorage.setItem(key,value);
+   return view.localStorage.getItem(key)||"";
+  }catch{return "";}
+ };
+ const dialog=doc.createElement("dialog");
+ dialog.style.cssText="width:min(420px,calc(100% - 32px));box-sizing:border-box;border:1px solid #d4dfea;border-radius:14px;padding:20px;color:#18314d;font:15px system-ui,sans-serif;margin:auto";
+ dialog.innerHTML=`
+ <h2 style="margin:0 0 8px">Share memo image</h2>
+ <p>Choose WhatsApp and the recipient in your phone’s share menu.</p>
+ <label style="display:block;margin:10px 0">Customer WhatsApp (with country code)
+  <input data-customer type="tel" placeholder="+880…" style="display:block;width:100%;box-sizing:border-box;margin-top:4px">
+ </label>
+ <label style="display:block;margin:10px 0">Your business WhatsApp (shown on the memo)
+  <input data-business type="tel" placeholder="+966…" style="display:block;width:100%;box-sizing:border-box;margin-top:4px">
+ </label>
+ <p data-name></p>
+ <div style="display:flex;flex-wrap:wrap;gap:8px">
+  <button type="button" data-share>Share on WhatsApp</button>
+  <button type="button" data-download>Download PNG</button>
+  <button type="button" data-chat>Open customer chat</button>
+  <button type="button" data-close>Close</button>
+ </div>
+ <p role="status" data-status></p>`;
+ const customer=dialog.querySelector("[data-customer]");
+ const business=dialog.querySelector("[data-business]");
+ const status=dialog.querySelector("[data-status]");
+ dialog.querySelector("[data-name]").textContent=memo.customer;
+ customer.value=preference(customerKey)||memo.phone||"";
+ business.value=preference(businessKey);
+ customer.onchange=()=>preference(customerKey,customer.value.trim());
+ business.onchange=()=>preference(businessKey,business.value.trim());
+ function image(){
+  const number=memoWhatsAppNumber(business.value);
+  if(business.value.trim()&&!number)throw Error("Enter a valid business WhatsApp number with its country code.");
+  preference(businessKey,business.value.trim());
+  return drawMemoImage(view,memo,number);
+ }
+ dialog.querySelector("[data-share]").onclick=async()=>{
+  try{
+   const files=[image()];
+   if(!view.navigator.canShare?.({files})||!view.navigator.share){
+    status.textContent="File sharing is unavailable here. Download PNG and attach it in the customer chat.";
+    return;
+   }
+   status.textContent="";
+   await view.navigator.share({files});
+  }catch(error){
+   if(error.name!=="AbortError")status.textContent=error.message;
+  }
+ };
+ dialog.querySelector("[data-download]").onclick=()=>{
+  try{
+   const file=image();
+   const url=view.URL.createObjectURL(file);
+   const link=doc.createElement("a");
+   link.href=url;
+   link.download=file.name;
+   dialog.append(link);
+   link.click();
+   link.remove();
+   view.setTimeout(()=>view.URL.revokeObjectURL(url),30000);
+   status.textContent="Attach the downloaded PNG in the customer chat.";
+  }catch(error){status.textContent=error.message;}
+ };
+ dialog.querySelector("[data-chat]").onclick=()=>{
+  const number=memoWhatsAppNumber(customer.value);
+  if(!number){status.textContent="Enter the customer’s WhatsApp number with its country code.";return;}
+  preference(customerKey,customer.value.trim());
+  view.open("https://wa.me/"+number,"_blank","noopener,noreferrer");
+ };
+ dialog.querySelector("[data-close]").onclick=()=>dialog.close();
+ dialog.addEventListener("close",()=>dialog.remove(),{once:true});
+ doc.body.append(dialog);
+ dialog.showModal();
+}
+
+function purchaseShareMemo(rows){
+ if(!rows.length)throw Error("Select a purchase to share.");
+ if(rows.some(row=>row.party_id!==rows[0].party_id))throw Error("Choose a single customer before sharing a memo.");
+ const customer=partyList.find(account=>account.id===rows[0].party_id);
+ const ordered=[...rows].sort((a,b)=>a.purchase_date.localeCompare(b.purchase_date));
+ return {
+  title:"Riyal Buy Memo",filename:"Tajkiya-Riyal-Buy-Memo",
+  customer:customer?.name||partyName(rows[0].party_id),customerId:rows[0].party_id,phone:customer?.phone,
+  date:[...new Set([ordered[0].purchase_date,ordered.at(-1).purchase_date])].join(" to "),
+  reference:ordered.length===1?ordered[0].id:"",
+  totals:ordered.length>1?[
+   "Total SAR received: "+fmt(ordered.reduce((sum,row)=>sum+n(row.amount_sar),0))+" SAR",
+   "Total purchase value: "+fmt(ordered.reduce((sum,row)=>sum+Math.round(n(row.total_bdt)*100),0)/100)+" BDT",
+   "Total paid: "+fmt(ordered.reduce((sum,row)=>sum+Math.round(purchasePaid(row)*100),0)/100)+" BDT"
+  ]:[],
+  sections:ordered.map(row=>{
+   const [date,,method,sar,rate,value,paid,balance]=purchaseMemoCells(row);
+   const details=row.bank_payments?.length?[
+    ...row.bank_payments.map(line=>line.bank_name+" · "+fmt(line.amount_bdt)+" BDT"+(line.reference?" · "+line.reference:"")),
+    ...[row.payment_reference,row.notes].filter(Boolean)
+   ]:[method];
+   return {title:date,lines:[
+    "SAR received: "+sar+" SAR  ·  Rate: "+rate+" BDT/SAR",
+    "Purchase value: "+value+" BDT  ·  Paid: "+paid+" BDT",balance,...details
+   ]};
+  })
+ };
+}
+
+function bankShareMemo(customer,date,notes,payment){
+ return {
+  title:"Bank Payment Memo",filename:"Tajkiya-Bank-Payment-Memo",
+  customer:customer.name,customerId:customer.id,phone:customer.phone,date,notes,
+  sections:payment.lines.map(line=>({title:line.bank_name,lines:[
+   ...(line.reference?[line.reference]:[]),fmt(line.amount_bdt)+" BDT"
+  ]})),
+  totals:["Total: "+fmt(formatBankCents(payment.cents))+" BDT"]
+ };
 }
 
 function printPurchaseMemo(rows){
@@ -922,6 +1115,8 @@ function printPurchaseMemo(rows){
  @media print{body{margin:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}button{display:none}.tablewrap{overflow:visible}}
  </style></head><body>
  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+ <button type="button" id="memoImageShare">Share on WhatsApp</button>
+ <p id="memoImageStatus" role="status"></p>
  <header><h1>Tajkiya Enterprise</h1><h2>Riyal Buy Memo</h2>
  <p>${esc(customer)} · ${esc(from===to?from:from+" to "+to)}${ordered.length===1?" · Ref "+esc(ordered[0].id):""}</p></header>
  <div class="tablewrap"><table><thead><tr><th>Date</th><th>Customer</th><th>Method / Bank / Reference</th><th>SAR Received</th>
@@ -931,21 +1126,31 @@ function printPurchaseMemo(rows){
   `<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`).join("")}</tbody></table>
  </body></html>`);
  preview.document.close();
+ preview.document.getElementById("memoImageShare").onclick=()=>{
+  try{openMemoShare(purchaseShareMemo(rows),preview);}
+  catch(error){preview.document.getElementById("memoImageStatus").textContent=error.message;}
+ };
  preview.focus();
 }
 
 $("purchaseMemoCustomer").addEventListener("change",renderPurchaseRows);
 $("purchaseMemoDate").addEventListener("input",renderPurchaseRows);
 $("printPurchaseMemo").onclick=()=>printPurchaseMemo(filteredPurchases());
+function sharePurchaseRows(rows){
+ try{openMemoShare(purchaseShareMemo(rows));purchaseStatus.textContent="";}
+ catch(error){purchaseStatus.textContent=error.message;}
+}
+$("sharePurchaseMemo").onclick=()=>sharePurchaseRows(filteredPurchases());
 $("purchaseRows").onclick=event=>{
- const button=event.target.closest("[data-purchase-memo],[data-purchase-edit],[data-purchase-delete]");
+ const button=event.target.closest("[data-purchase-memo],[data-purchase-share],[data-purchase-edit],[data-purchase-delete]");
  if(!button)return;
- const {purchaseMemo,purchaseEdit,purchaseDelete}=button.dataset;
- const row=purchaseList.find(purchase=>purchase.id===(purchaseMemo||purchaseEdit||purchaseDelete));
+ const {purchaseMemo,purchaseShare,purchaseEdit,purchaseDelete}=button.dataset;
+ const row=purchaseList.find(purchase=>purchase.id===(purchaseMemo||purchaseShare||purchaseEdit||purchaseDelete));
  if(!row)return;
  if(purchaseDelete)deletePurchase(row);
  else if(purchaseEdit&&admin())editPurchasePayment(row);
  else if(purchaseMemo)printPurchaseMemo([row]);
+ else if(purchaseShare)sharePurchaseRows([row]);
 };
 
 async function deletePurchase(purchase){
@@ -1062,13 +1267,15 @@ function printStandaloneBankMemo(customer,date,notes,payment){
  th,tfoot{background:#edf3f7}.money{text-align:right}tr{break-inside:avoid}thead{display:table-header-group}
  @media print{button{display:none}body{margin:0;padding:0}}</style></head><body>
  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+ <button type="button" id="memoImageShare">Share on WhatsApp</button>
  <h1>Tajkiya Enterprise</h1><h2>Bank Payment Memo</h2>
- <p><strong>Customer</strong> ${esc(customer)} · <strong>Date</strong> ${esc(date)}</p>
+ <p><strong>Customer</strong> ${esc(customer.name)} · <strong>Date</strong> ${esc(date)}</p>
  <table><thead><tr><th>Bank</th><th>Recipient / Reference</th><th class="money">Amount (BDT)</th></tr></thead>
  <tbody>${rows}</tbody><tfoot><tr><th colspan="2">Total BDT</th><td class="money">${fmt(formatBankCents(payment.cents))}</td></tr></tfoot></table>
  ${notes?`<p>${esc(notes)}</p>`:""}
  </body></html>`);
  preview.document.close();
+ preview.document.getElementById("memoImageShare").onclick=()=>openMemoShare(bankShareMemo(customer,date,notes,payment),preview);
  preview.focus();
 }
 
@@ -1867,8 +2074,8 @@ for(const host of [purchaseBankLines,bankMemoLines]){
  };
 }
 $("bankMemoForm").addEventListener("input",updateBankMemoTotal);
-$("bankMemoForm").addEventListener("submit",event=>{
- event.preventDefault();
+function showDraftBankMemo(share){
+ if(!$("bankMemoForm").reportValidity())return;
  const customer=partyList.find(row=>row.id===$("bankMemoCustomer").value&&row.party_type==="customer");
  const payment=readBankLines(bankMemoLines);
  if(!customer||!payment){
@@ -1876,10 +2083,17 @@ $("bankMemoForm").addEventListener("submit",event=>{
   return;
  }
  try{
-  printStandaloneBankMemo(customer.name,$("bankMemoDate").value,$("bankMemoNotes").value.trim(),payment);
+  const date=$("bankMemoDate").value, notes=$("bankMemoNotes").value.trim();
+  if(share)openMemoShare(bankShareMemo(customer,date,notes,payment));
+  else printStandaloneBankMemo(customer,date,notes,payment);
   $("bankMemoStatus").textContent="";
  }catch(error){$("bankMemoStatus").textContent=error.message;}
+}
+$("bankMemoForm").addEventListener("submit",event=>{
+ event.preventDefault();
+ showDraftBankMemo(false);
 });
+$("shareBankMemo").onclick=()=>showDraftBankMemo(true);
 addBankLine(bankMemoLines);
 let editingBankPayout=null;
 let pendingBankPayout=null;
@@ -1907,16 +2121,25 @@ function renderBankMemoDeposits(){
   const print=document.createElement("button");
   print.type="button";
   print.textContent="Print saved memo";
-  print.onclick=()=>{
+  const showSavedMemo=share=>{
    try{
     const cents=row.bank_lines.reduce((sum,bank)=>{
      const [whole,fraction=""]=String(bank.amount_bdt).split(".");
      return sum+BigInt(whole+fraction.padEnd(2,"0"));
     },0n);
-    printStandaloneBankMemo(partyName(row.party_id),row.payout_date,row.notes,{lines:row.bank_lines,cents});
+    const customer=partyList.find(account=>account.id===row.party_id);
+    const payment={lines:row.bank_lines,cents};
+    if(share)openMemoShare(bankShareMemo(customer,row.payout_date,row.notes,payment));
+    else printStandaloneBankMemo(customer,row.payout_date,row.notes,payment);
    }catch(error){$("bankMemoStatus").textContent=error.message;}
   };
-  line.append(print);
+  print.onclick=()=>showSavedMemo(false);
+  const share=document.createElement("button");
+  share.type="button";
+  share.className="secondary";
+  share.textContent="Share on WhatsApp";
+  share.onclick=()=>showSavedMemo(true);
+  line.append(print," ",share);
   if(admin()){
    const edit=document.createElement("button");
    edit.type="button";
